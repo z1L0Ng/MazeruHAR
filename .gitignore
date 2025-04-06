@@ -45,3 +45,4 @@ Thumbs.db
 
 # Ignore data files
 *.hkl
+HART_Results/
