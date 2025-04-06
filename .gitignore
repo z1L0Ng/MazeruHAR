@@ -1,0 +1,47 @@
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+*.so
+
+# Notebook checkpoint
+.ipynb_checkpoints/
+
+# Jupyter runtime/log
+*.log
+
+# Conda 环境文件
+env/
+*.env
+.venv/
+*.yaml
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Output files
+*.h5
+*.pt
+*.ckpt
+*.pth
+*.onnx
+
+# Dataset cache / temp
+*.zip
+*.tar.gz
+dataset/
+data/
+tmp/
+output/
+runs/
+
+# Jupyter execution artifacts
+main_output.ipynb
+train.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ignore data files
+*.hkl
