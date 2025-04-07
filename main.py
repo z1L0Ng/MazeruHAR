@@ -19,7 +19,7 @@ import tensorflow as tf
 # In[ ]:
 
 
-from tensorflow.keras.optimizers import Adam
+from keras.optimizers import Adam
 import csv
 from sklearn.metrics import f1_score, confusion_matrix
 from sklearn.utils import class_weight

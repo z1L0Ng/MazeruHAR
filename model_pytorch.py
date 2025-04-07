@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# @Time    : 2025/4/7
+# @Author  : Zilong
+# @File    : model_pytorch.py
+# @Description: PyTorch version of HART model skeleton, planned to support a mix of Mamba and Transformer structures.
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,44 +30,6 @@ class DropPath(nn.Module):
         print("Random keep ratio:", random_tensor.float().mean().item())
         return x * random_tensor / keep_prob
 
-
-class ClassToken(nn.Module):
-    def __init__(self, hidden_size):
-        super(ClassToken, self).__init__()
-        self.hidden_size = hidden_size
-        self.cls = nn.Parameter(torch.randn(1, 1, hidden_size))
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        cls_tokens = self.cls.expand(batch_size, -1, -1)
-        return torch.cat((cls_tokens, x), dim=1)
-
-class PatchEncoder(nn.Module):
-    def __init__(self, num_patches, projection_dim):
-        super(PatchEncoder, self).__init__()
-        self.num_patches = num_patches
-        self.projection_dim = projection_dim
-        self.position_embedding = nn.Embedding(num_patches, projection_dim)
-
-    def forward(self, x):
-        positions = torch.arange(0, self.num_patches, device=x.device).unsqueeze(0)
-        pos_embed = self.position_embedding(positions)
-        return x + pos_embed
-
-class Prompts(nn.Module):
-    def __init__(self, projection_dims, prompt_count=1):
-        super(Prompts, self).__init__()
-        self.projection_dims = projection_dims
-        self.prompt_count = prompt_count
-        self.prompts = nn.ParameterList([
-            nn.Parameter(torch.randn(1, 1, projection_dims)) for _ in range(prompt_count)
-        ])
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        prompt_cat = torch.cat([p.expand(batch_size, -1, -1) for p in self.prompts], dim=1)
-        return torch.cat((x, prompt_cat), dim=1)
-
 class GatedLinearUnit(nn.Module):
     def __init__(self, dim, expansion_factor=2, dropout=0.0):
         super(GatedLinearUnit, self).__init__()
@@ -77,41 +46,45 @@ class GatedLinearUnit(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)
         return x
-
-class SensorPatchesTimeDistributed(nn.Module):
-    def __init__(self, projection_dim, filter_count, patch_count, frame_size=128, channels_count=6):
-        super().__init__()
+    
+class PatchEncoder(nn.Module):
+    def __init__(self, num_patches, projection_dim):
+        super(PatchEncoder, self).__init__()
+        self.num_patches = num_patches
         self.projection_dim = projection_dim
-        self.filter_count = filter_count
-        self.patch_count = patch_count
-        self.frame_size = frame_size
-        self.channels_count = channels_count
-
-        self.kernel_size = (projection_dim // 2 + filter_count) // filter_count
-        assert ((projection_dim // 2 + filter_count) / filter_count) % self.kernel_size == 0, \
-            "Kernel size condition not satisfied."
-
-        self.reshape = lambda x: x.view(x.size(0), patch_count, frame_size // patch_count, channels_count)
-
-        self.acc_projection = nn.Conv1d(3, filter_count, kernel_size=self.kernel_size, stride=1)
-        self.gyro_projection = nn.Conv1d(3, filter_count, kernel_size=self.kernel_size, stride=1)
+        self.position_embedding = nn.Embedding(num_patches, projection_dim)
 
     def forward(self, x):
-        # x shape: (B, T, C=6)
-        x = self.reshape(x)  # → (B, P, F, C)
-        B, P, F, C = x.shape
+        positions = torch.arange(0, self.num_patches, device=x.device).unsqueeze(0)
+        pos_embed = self.position_embedding(positions)
+        return x + pos_embed
 
-        acc = x[..., :3].reshape(B * P, 3, F)       # (B*P, 3, F)
-        gyro = x[..., 3:].reshape(B * P, 3, F)       # (B*P, 3, F)
+class ClassToken(nn.Module):
+    def __init__(self, hidden_size):
+        super(ClassToken, self).__init__()
+        self.hidden_size = hidden_size
+        self.cls = nn.Parameter(torch.randn(1, 1, hidden_size))
 
-        acc_proj = self.acc_projection(acc)          # (B*P, filter_count, L)
-        gyro_proj = self.gyro_projection(gyro)
+    def forward(self, x):
+        batch_size = x.size(0)
+        cls_tokens = self.cls.expand(batch_size, -1, -1)
+        return torch.cat((cls_tokens, x), dim=1)
 
-        acc_proj = acc_proj.reshape(B, P, -1)
-        gyro_proj = gyro_proj.reshape(B, P, -1)
 
-        projections = torch.cat((acc_proj, gyro_proj), dim=2)
-        return projections
+
+class Prompts(nn.Module):
+    def __init__(self, projection_dims, prompt_count=1):
+        super(Prompts, self).__init__()
+        self.projection_dims = projection_dims
+        self.prompt_count = prompt_count
+        self.prompts = nn.ParameterList([
+            nn.Parameter(torch.randn(1, 1, projection_dims)) for _ in range(prompt_count)
+        ])
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        prompt_cat = torch.cat([p.expand(batch_size, -1, -1) for p in self.prompts], dim=1)
+        return torch.cat((x, prompt_cat), dim=1)
 
 class SensorWiseMHA(nn.Module):
     def __init__(self, dim, num_heads=4, dropout=0.0, start_index=None, stop_index=None, drop_path_rate=0.0):
@@ -151,7 +124,7 @@ class SensorWiseMHA(nn.Module):
             return out, attn_weights
         else:
             return out
-        
+
 class LiteFormer(nn.Module):
     def __init__(self, start_index, stop_index, projection_size, kernel_size=16, attention_head=3, use_bias=False, drop_path_rate=0.0):
         super().__init__()
@@ -264,7 +237,41 @@ class DepthMLP(nn.Module):
         x = self.fc2(x)
         x = self.dropout2(x)
         return x
-    
+
+class SensorPatchesTimeDistributed(nn.Module):
+    def __init__(self, projection_dim, filter_count, patch_count, frame_size=128, channels_count=6):
+        super().__init__()
+        self.projection_dim = projection_dim
+        self.filter_count = filter_count
+        self.patch_count = patch_count
+        self.frame_size = frame_size
+        self.channels_count = channels_count
+
+        self.kernel_size = (projection_dim // 2 + filter_count) // filter_count
+        assert ((projection_dim // 2 + filter_count) / filter_count) % self.kernel_size == 0, \
+            "Kernel size condition not satisfied."
+
+        self.reshape = lambda x: x.view(x.size(0), patch_count, frame_size // patch_count, channels_count)
+
+        self.acc_projection = nn.Conv1d(3, filter_count, kernel_size=self.kernel_size, stride=1)
+        self.gyro_projection = nn.Conv1d(3, filter_count, kernel_size=self.kernel_size, stride=1)
+
+    def forward(self, x):
+        # x shape: (B, T, C=6)
+        x = self.reshape(x)  # → (B, P, F, C)
+        B, P, F, C = x.shape
+
+        acc = x[..., :3].reshape(B * P, 3, F)       # (B*P, 3, F)
+        gyro = x[..., 3:].reshape(B * P, 3, F)       # (B*P, 3, F)
+
+        acc_proj = self.acc_projection(acc)          # (B*P, filter_count, L)
+        gyro_proj = self.gyro_projection(gyro)
+
+        acc_proj = acc_proj.reshape(B, P, -1)
+        gyro_proj = gyro_proj.reshape(B, P, -1)
+
+        projections = torch.cat((acc_proj, gyro_proj), dim=2)
+        return projections
 
 class SensorPatches(nn.Module):
     def __init__(self, projection_dim, patch_size, time_step):
