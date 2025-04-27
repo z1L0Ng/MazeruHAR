@@ -13,6 +13,7 @@ import hickle as hkl
 import tensorflow as tf
 import seaborn as sns
 import logging
+import scipy.stats
 from tensorflow.python.client import device_lib
 
 
