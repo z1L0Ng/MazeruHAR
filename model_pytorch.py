@@ -183,63 +183,54 @@ class LiteFormer(nn.Module):
             nn.init.xavier_uniform_(self.conv_bias)
     
     def forward(self, inputs):
-        # 提取相关的输入通道
+    # 提取相关的输入通道
         formatted_inputs = inputs[:, :, self.start_index:self.stop_index]
         batch_size, seq_len, channels = formatted_inputs.shape
-        
-        # 重塑输入以便于卷积操作
-        # 将输入转换为形状 [batch_size, channels, seq_len]
+
+    # 将输入reshape成 [batch_size, channels, seq_len]
         reshaped_inputs = formatted_inputs.permute(0, 2, 1)
-        
-        # 将通道维度分成注意力头
-        # [batch_size, attention_head, channels/attention_head, seq_len]
-        reshaped_inputs = reshaped_inputs.view(batch_size, self.attention_head, -1, seq_len)
-        
-        # 应用软最大化到卷积核
+
+    # 将通道分成多个head
+        channels_per_head = channels // self.attention_head
+        reshaped_inputs = reshaped_inputs.view(batch_size, self.attention_head, channels_per_head, seq_len)
+
+    # 应用 softmax 到卷积核
         if self.training:
             softmax_kernels = [F.softmax(kernel, dim=-1) for kernel in self.depthwise_kernels]
         else:
             softmax_kernels = self.depthwise_kernels
-        
-        # 应用一维卷积作为替代注意力
+
         conv_outputs = []
         for i in range(self.attention_head):
-            # 提取当前头的输入
-            head_input = reshaped_inputs[:, i, :, :]  # [batch_size, channels/attention_head, seq_len]
-            
-            # 应用通道间的一维卷积
-            # 为每个输入通道应用相同的卷积核
+            head_input = reshaped_inputs[:, i, :, :]  # [batch_size, channels_per_head, seq_len]
             kernel = softmax_kernels[i]
-            # 确保卷积核维度正确
             kernel = kernel.view(1, 1, self.kernel_size)
-            
-            # 对每个通道应用相同的一维卷积
-            head_output = F.conv1d(
-                head_input, 
-                kernel, 
-                bias=None, 
-                padding='same',
-                groups=head_input.shape[1]  # 使每个通道独立卷积
-            )
-            
-            # 添加偏置，如果有的话
-            if self.use_bias:
-                head_output = head_output + self.conv_bias[i].view(1, 1, 1)
-                
-            conv_outputs.append(head_output)
         
-        # 拼接所有头的输出
-        conv_outputs = torch.cat(conv_outputs, dim=1)
-        
-        # 应用droppath
-        conv_outputs_drop_path = self.drop_path(conv_outputs)
-        
-        # 重塑回原始维度序列
-        # [batch_size, channels, seq_len] -> [batch_size, seq_len, channels]
-        local_attention = conv_outputs_drop_path.permute(0, 2, 1)
-        
-        return local_attention
+            # 复制kernel以匹配每个通道
+            # 这是修复的关键部分: kernel维度应为[channels_per_head, 1, kernel_size]
+            kernel = kernel.repeat(channels_per_head, 1, 1)
 
+            head_output = F.conv1d(
+            head_input,
+            kernel,
+            bias=None,
+            padding='same',
+            groups=channels_per_head  # 每个channel独立卷积
+        )
+
+        if self.use_bias:
+            head_output = head_output + self.conv_bias[i].view(1, 1, 1)
+
+        conv_outputs.append(head_output)
+
+        # 拼接所有head的输出
+        conv_outputs = torch.cat(conv_outputs, dim=1)
+        conv_outputs = self.drop_path(conv_outputs)
+
+        # 恢复成 [batch_size, seq_len, channels]
+        local_attention = conv_outputs.permute(0, 2, 1)
+
+        return local_attention
 
 class MixAccGyro(nn.Module):
     """
@@ -1066,10 +1057,49 @@ class FourSensorPatches(nn.Module):
         return projections
 
 
-def extract_intermediate_model_from_base_model(base_model, intermediate_layer=4):
-    """从基础模型中提取中间层模型"""
-    return torch.nn.Sequential(*list(base_model.children())[:intermediate_layer])
-
+def extract_intermediate_model_from_base_model(model, layer_idx=-4):
+    """从模型中提取中间特征的钩子机制
+    
+    Args:
+        model: 基础模型
+        layer_idx: 需要提取特征的层索引或名称
+        
+    Returns:
+        一个接收输入并返回特定层输出的函数
+    """
+    class IntermediateModel(torch.nn.Module):
+        def __init__(self, base_model, target_layer):
+            super().__init__()
+            self.base_model = base_model
+            self.target_layer = target_layer
+            self.features = None
+            
+            # 用于临时保存特征的钩子函数
+            def hook_fn(module, input, output):
+                self.features = output
+            
+            # 找到目标层并注册钩子
+            if isinstance(target_layer, int):
+                # 如果是索引，找到相应位置的层
+                for i, (name, module) in enumerate(model.named_modules()):
+                    if i == target_layer:
+                        self.hook = module.register_forward_hook(hook_fn)
+                        break
+            else:
+                # 如果是名称，通过名称查找层
+                for name, module in model.named_modules():
+                    if name == target_layer:
+                        self.hook = module.register_forward_hook(hook_fn)
+                        break
+        
+        def forward(self, x):
+            # 运行整个模型但只返回目标层的输出
+            self.base_model(x)
+            features = self.features
+            self.features = None  # 清空以避免内存泄漏
+            return features
+    
+    return IntermediateModel(model, layer_idx)
 
 def mobileHART_XXS(input_shape, activity_count, projection_dims=None, filter_count=None, 
                 expansion_factor=2, mlp_head_units=None, dropout_rate=0.3):
