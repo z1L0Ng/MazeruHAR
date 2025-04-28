@@ -495,25 +495,46 @@ def round_number(to_round_nb):
     return round(to_round_nb, 4) * 100
 
 
-def extract_intermediate_model_from_base_model(base_model, intermediate_layer=7):
-    """
-    从基础模型创建中间模型，输出中间层的激活
+def extract_intermediate_model_from_base_model(model, layer_idx=-4):
+    """从模型中提取中间特征的钩子机制
     
-    参数:
-        base_model: 从中构建中间模型的基础模型
-        intermediate_layer: 从中提取激活的中间层的索引
+    Args:
+        model: 基础模型
+        layer_idx: 需要提取特征的层索引或名称
         
-    返回:
-        PyTorch模型
+    Returns:
+        一个接收输入并返回特定层输出的函数
     """
-    # 创建一个新模型，使用原始模型的前几层
-    class IntermediateModel(nn.Module):
-        def __init__(self, base_model, layer_idx):
-            super(IntermediateModel, self).__init__()
-            # 提取前layer_idx层
-            self.features = nn.Sequential(*list(base_model.children())[:layer_idx+1])
+    class IntermediateModel(torch.nn.Module):
+        def __init__(self, base_model, target_layer):
+            super().__init__()
+            self.base_model = base_model
+            self.target_layer = target_layer
+            self.features = None
             
+            # 用于临时保存特征的钩子函数
+            def hook_fn(module, input, output):
+                self.features = output
+            
+            # 找到目标层并注册钩子
+            if isinstance(target_layer, int):
+                # 如果是索引，找到相应位置的层
+                for i, (name, module) in enumerate(model.named_modules()):
+                    if i == target_layer:
+                        self.hook = module.register_forward_hook(hook_fn)
+                        break
+            else:
+                # 如果是名称，通过名称查找层
+                for name, module in model.named_modules():
+                    if name == target_layer:
+                        self.hook = module.register_forward_hook(hook_fn)
+                        break
+        
         def forward(self, x):
-            return self.features(x)
+            # 运行整个模型但只返回目标层的输出
+            self.base_model(x)
+            features = self.features
+            self.features = None  # 清空以避免内存泄漏
+            return features
     
-    return IntermediateModel(base_model, intermediate_layer)
+    return IntermediateModel(model, layer_idx)
