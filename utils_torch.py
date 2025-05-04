@@ -176,17 +176,71 @@ def create_segments_and_labels_mobiact(df, time_steps, step, label_name="LabelsE
     return reshaped_segments, labels
 
 
-class HARDataset(Dataset):
-    """PyTorch数据集用于人体活动识别数据"""
-    def __init__(self, data, labels):
-        self.data = torch.FloatTensor(data)
-        self.labels = torch.LongTensor(labels)
+class HARDataset(torch.utils.data.Dataset):
+    """
+    人体活动识别数据集加载器
+    """
+    def __init__(self, features, labels, transform=None):
+        """
+        初始化数据集
+        
+        参数:
+            features: 特征张量
+            labels: 标签张量
+            transform: 变换函数（可选）
+        """
+        self.features = features
+        self.labels = labels
+        self.transform = transform
         
     def __len__(self):
-        return len(self.data)
+        return len(self.features)
     
     def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx]
+        x = self.features[idx]
+        y = self.labels[idx]
+        
+        if self.transform:
+            x = self.transform(x)
+            
+        return x, y
+    
+    @staticmethod
+    def create_data_loaders(train_features, train_labels, dev_features, dev_labels, 
+                          test_features, test_labels, batch_size, num_workers=4):
+        """
+        创建训练、验证和测试数据加载器
+        
+        参数:
+            train_features, train_labels: 训练数据
+            dev_features, dev_labels: 验证数据
+            test_features, test_labels: 测试数据
+            batch_size: 批量大小
+            num_workers: 数据加载的工作线程数
+            
+        返回:
+            train_loader, dev_loader, test_loader
+        """
+        # 创建数据集
+        train_dataset = HARDataset(train_features, train_labels)
+        dev_dataset = HARDataset(dev_features, dev_labels)
+        test_dataset = HARDataset(test_features, test_labels)
+        
+        # 创建数据加载器
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=True, 
+            num_workers=num_workers, pin_memory=True
+        )
+        dev_loader = torch.utils.data.DataLoader(
+            dev_dataset, batch_size=batch_size, shuffle=False, 
+            num_workers=num_workers, pin_memory=True
+        )
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset, batch_size=batch_size, shuffle=False, 
+            num_workers=num_workers, pin_memory=True
+        )
+        
+        return train_loader, dev_loader, test_loader
 
 
 def load_dataset_pytorch(dataset_name, client_count, data_config, random_seed, main_dir, stratified_split=True):

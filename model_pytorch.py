@@ -154,7 +154,7 @@ class SensorWiseMHA(nn.Module):
 
 class LiteFormer(nn.Module):
     """
-    LiteFormer模块使用一维卷积而不是自注意力，以便更高效地处理序列数据
+    改进的LiteFormer模块，使用高效的一维卷积处理序列数据
     """
     def __init__(self, start_index, stop_index, projection_size, kernel_size=16, attention_head=3, use_bias=False, drop_path_rate=0.0, dropout_rate=0):
         super(LiteFormer, self).__init__()
@@ -167,7 +167,7 @@ class LiteFormer(nn.Module):
         self.drop_path = DropPath(drop_path_rate)
         self.projection_half = projection_size // 2
         
-        # 为每个注意力头创建可学习的卷积核
+        # 初始化卷积核权重
         self.depthwise_kernels = nn.ParameterList([
             nn.Parameter(torch.Tensor(1, 1, kernel_size))
             for _ in range(attention_head)
@@ -187,48 +187,58 @@ class LiteFormer(nn.Module):
         formatted_inputs = inputs[:, :, self.start_index:self.stop_index]
         batch_size, seq_len, channels = formatted_inputs.shape
 
-        # 将输入reshape成 [batch_size, channels, seq_len]
+        # 将输入reshape成 [batch_size, channels, seq_len]，更适合卷积操作
         reshaped_inputs = formatted_inputs.permute(0, 2, 1)
 
-        # 将通道分成多个head
+        # 计算每个头的通道数
         channels_per_head = channels // self.attention_head
+        
+        # 重塑输入以进行每头处理 [batch_size, heads, channels_per_head, seq_len]
         reshaped_inputs = reshaped_inputs.view(batch_size, self.attention_head, channels_per_head, seq_len)
 
-        # 应用 softmax 到卷积核
+        # 应用softmax到卷积核（仅在训练模式下）
         if self.training:
             softmax_kernels = [F.softmax(kernel, dim=-1) for kernel in self.depthwise_kernels]
         else:
-            softmax_kernels = [kernel for kernel in self.depthwise_kernels]
-
+            softmax_kernels = self.depthwise_kernels
+        
+        # 为每个注意力头执行卷积操作
         conv_outputs = []
         for i in range(self.attention_head):
-            head_input = reshaped_inputs[:, i, :, :]  # [batch_size, channels_per_head, seq_len]
-            kernel = softmax_kernels[i]
-            kernel = kernel.view(1, 1, self.kernel_size)
-        
-        # 复制kernel以匹配每个通道
+            # 提取当前头的输入
+            head_input = reshaped_inputs[:, i]  # [batch_size, channels_per_head, seq_len]
+            
+            # 获取当前头的核
+            kernel = softmax_kernels[i].view(1, 1, self.kernel_size)
+            
+            # 扩展核以匹配输入通道
             kernel = kernel.repeat(channels_per_head, 1, 1)
-
+            
+            # 执行卷积
             head_output = F.conv1d(
-            head_input,
-            kernel,
-            bias=None,
-            padding='same',
-            groups=channels_per_head  # 每个channel独立卷积
-        )
-
+                head_input,
+                kernel,
+                bias=None,
+                padding='same',
+                groups=channels_per_head  # 每个通道独立卷积
+            )
+            
+            # 添加偏置（如果需要）
             if self.use_bias:
                 head_output = head_output + self.conv_bias[i].view(1, 1, 1)
-
-        conv_outputs.append(head_output)
-
-    # 拼接所有head的输出
+            
+            # 收集输出
+            conv_outputs.append(head_output)
+        
+        # 拼接所有头的输出 [batch_size, channels, seq_len]
         conv_outputs = torch.cat(conv_outputs, dim=1)
+        
+        # 应用DropPath
         conv_outputs = self.drop_path(conv_outputs)
-
-    # 恢复成 [batch_size, seq_len, channels]
+        
+        # 转换回原始形状 [batch_size, seq_len, channels]
         local_attention = conv_outputs.permute(0, 2, 1)
-
+        
         return local_attention
 
 class MixAccGyro(nn.Module):
@@ -470,74 +480,99 @@ class HART(nn.Module):
     def forward(self, inputs):
         # 创建补丁
         x = self.patches(inputs)
-    
+
         # 添加分类token（如果需要）
         if self.use_tokens:
             x = self.class_token(x)
-    
+
         # 添加位置编码
         encoded_patches = self.patch_encoder(x)
-    
+
+        # 调试信息
+        debug_info = {}
+
         # 应用Transformer块
         for i in range(0, len(self.transformer_blocks), 7):
             # 应用层归一化
             x1 = self.transformer_blocks[i](encoded_patches)
-        
-            # 检查通道维度是否如预期
+
+            # 计算预期维度
             expected_half = self.projection_half
             expected_quarter = self.projection_quarter
-        
-         # LiteFormer分支 - 应该返回projection_half维度
-            branch1 = self.transformer_blocks[i+1](x1)
-        
-        # 确保branch1维度与预期相同
-        # 选项1：无论条件如何都使用填充/插值函数
-            branch1 = torch.nn.functional.interpolate(branch1, size=(expected_half,), mode='linear', align_corners=False)
 
+            # LiteFormer分支
+            branch1 = self.transformer_blocks[i + 1](x1)
 
-        
-            # 加速度计MHA分支 - 应该返回projection_quarter维度
-            branch2_acc = self.transformer_blocks[i+2](x1)
-        
-            # 陀螺仪MHA分支 - 应该返回projection_quarter维度
-            branch2_gyro = self.transformer_blocks[i+3](x1)
-        
-            # 打印调试信息
-            #print(f"Dims: acc={branch2_acc.shape[2]}, liteformer={branch1.shape[2]}, gyro={branch2_gyro.shape[2]}")
-            #print(f"Expected: quarter={expected_quarter}, half={expected_half}")
-        
-             # 确保所有分支维度正确，如果不正确则调整
-            branch2_acc = torch.nn.functional.interpolate(branch2_acc, size=(expected_quarter,), mode='linear', align_corners=False)
-            branch2_gyro = torch.nn.functional.interpolate(branch2_gyro, size=(expected_quarter,), mode='linear', align_corners=False)
-                
-        # 拼接所有分支
-        concat_attention = torch.cat((branch2_acc, branch1, branch2_gyro), dim=2)
-        
-        # 残差连接
-        x2 = concat_attention + encoded_patches
-        
-        # 层归一化
-        x3 = self.transformer_blocks[i+4](x2)
-        
-        # MLP (动态创建，因为它需要输入大小)
-        mlp_output = nn.Sequential(
-            nn.Linear(x3.size(-1), self.transformer_units[0]),
-            nn.SiLU(),
-            nn.Dropout(self.dropout_rate),
-            nn.Linear(self.transformer_units[0], self.transformer_units[1])
-        )(x3)
-        
-        # DropPath
-        x3 = self.transformer_blocks[i+6](mlp_output)
-        
-        # 最终残差连接
-        encoded_patches = x3 + x2
-    
-    # 后续代码保持不变...
-        
+            # 记录维度信息
+            debug_info[f"layer_{i}_branch1_shape_before"] = branch1.shape
+
+            # 确保branch1维度与预期相同
+            branch1 = torch.nn.functional.interpolate(
+                branch1,
+                size=(branch1.size(1), expected_half),
+                mode='bilinear',
+                align_corners=False
+            ) if branch1.size(-1) != expected_half else branch1
+
+            debug_info[f"layer_{i}_branch1_shape_after"] = branch1.shape
+
+            # 加速度计MHA分支
+            branch2_acc = self.transformer_blocks[i + 2](x1)
+            debug_info[f"layer_{i}_branch2_acc_shape_before"] = branch2_acc.shape
+
+            # 陀螺仪MHA分支
+            branch2_gyro = self.transformer_blocks[i + 3](x1)
+            debug_info[f"layer_{i}_branch2_gyro_shape_before"] = branch2_gyro.shape
+
+            # 确保所有分支维度正确
+            branch2_acc = torch.nn.functional.interpolate(
+                branch2_acc,
+                size=(branch2_acc.size(1), expected_quarter),
+                mode='bilinear',
+                align_corners=False
+            ) if branch2_acc.size(-1) != expected_quarter else branch2_acc
+
+            branch2_gyro = torch.nn.functional.interpolate(
+                branch2_gyro,
+                size=(branch2_gyro.size(1), expected_quarter),
+                mode='bilinear',
+                align_corners=False
+            ) if branch2_gyro.size(-1) != expected_quarter else branch2_gyro
+
+            debug_info[f"layer_{i}_branch2_acc_shape_after"] = branch2_acc.shape
+            debug_info[f"layer_{i}_branch2_gyro_shape_after"] = branch2_gyro.shape
+
+            # 执行断言检查，确保维度匹配
+            assert branch1.shape[2] == expected_half, f"Branch1维度不匹配: {branch1.shape[2]} vs {expected_half}"
+            assert branch2_acc.shape[2] == expected_quarter, f"Branch2_acc维度不匹配: {branch2_acc.shape[2]} vs {expected_quarter}"
+            assert branch2_gyro.shape[2] == expected_quarter, f"Branch2_gyro维度不匹配: {branch2_gyro.shape[2]} vs {expected_quarter}"
+
+            # 拼接所有分支
+            concat_attention = torch.cat((branch2_acc, branch1, branch2_gyro), dim=2)
+
+            # 残差连接
+            x2 = concat_attention + encoded_patches
+
+            # 层归一化
+            x3 = self.transformer_blocks[i + 4](x2)
+
+            # MLP (动态创建，因为它需要输入大小)
+            mlp_output = nn.Sequential(
+                nn.Linear(x3.size(-1), self.transformer_units[0]),
+                nn.SiLU(),
+                nn.Dropout(self.dropout_rate),
+                nn.Linear(self.transformer_units[0], self.transformer_units[1])
+            )(x3)
+
+            # DropPath
+            x3 = self.transformer_blocks[i + 6](mlp_output)
+
+            # 最终残差连接
+            encoded_patches = x3 + x2
+
         # 最终层归一化
         representation = self.final_layer_norm(encoded_patches)
-        
+
         # 提取表示
         if self.use_tokens:
             # 使用分类token作为表示
@@ -545,15 +580,15 @@ class HART(nn.Module):
         else:
             # 使用全局平均池化作为表示
             representation = representation.mean(dim=1)
-        
+
         # 应用MLP头
         for layer in self.mlp_head:
             representation = layer(representation)
-        
+
         # 分类层
         logits = self.classifier(representation)
         output = F.softmax(logits, dim=-1)
-        
+
         return output
 
 
