@@ -247,6 +247,10 @@ def load_dataset_pytorch(dataset_name, client_count, data_config, random_seed, m
     """加载数据集并转换为PyTorch格式"""
     # 创建一个DataHolder实例来存储数据
     data_return = DataHolder()
+
+    orientations_names = None
+    client_orientation_train = None
+    client_orientation_test = None
     
     if dataset_name == "UCI":
         # 加载UCI数据集

@@ -29,7 +29,7 @@ env/
 # Dataset cache / temp
 *.zip
 *.tar.gz
-dataset/
+datasets/
 data/
 tmp/
 output/
