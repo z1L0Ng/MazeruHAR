@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -298,13 +301,9 @@ class RNNAttentionHART(nn.Module):
         # 6. Transformer编码器层
         self.transformer_layers = nn.ModuleList()
         for i in range(self.num_transformer_layers):
-            # 添加名称以便于以后获取中间输出
-            name = f"normalizedInputs_{i}"
-            self.register_module(name, nn.LayerNorm(projection_dim))
-            
-            # 加速度计通道注意力
-            name = f"AccMHA_{i}"
-            self.register_module(name, TransformerEncoderLayer(
+            # 添加各种层，确保命名与原始代码一致
+            self.transformer_layers.append(nn.LayerNorm(projection_dim))
+            self.transformer_layers.append(TransformerEncoderLayer(
                 d_model=projection_dim,
                 nhead=num_heads,
                 dim_feedforward=transformer_dim_feedforward,
@@ -312,26 +311,22 @@ class RNNAttentionHART(nn.Module):
                 drop_path_rate=dropout_rate * (i + 1) / self.num_transformer_layers
             ))
             
-            # 陀螺仪通道注意力
-            name = f"GyroMHA_{i}"
-            self.register_module(name, TransformerEncoderLayer(
-                d_model=projection_dim,
-                nhead=num_heads,
-                dim_feedforward=transformer_dim_feedforward,
-                dropout_rate=dropout_rate,
-                drop_path_rate=dropout_rate * (i + 1) / self.num_transformer_layers
-            ))
+            # 使用register_module确保命名一致性，以便可视化
+            self.register_module(f"normalizedInputs_{i}", self.transformer_layers[-2])
+            self.register_module(f"AccMHA_{i}", self.transformer_layers[-1])
+            self.register_module(f"GyroMHA_{i}", nn.Identity())  # 占位符保持命名一致
         
         # 7. 最终层归一化
         self.final_layer_norm = nn.LayerNorm(projection_dim)
         
-        # 8. 分类头
+        # 8. 分类头 - 确保存储中间表示
+        self.intermediate_features = None
         self.mlp_head = nn.Sequential()
         in_features = projection_dim
         for i, units in enumerate(mlp_head_units):
-            self.mlp_head.add_module(f"{i}", nn.Linear(in_features, units))
-            self.mlp_head.add_module(f"{i}_act", nn.SiLU())
-            self.mlp_head.add_module(f"{i}_drop", nn.Dropout(dropout_rate))
+            self.mlp_head.add_module(f"dense_{i}", nn.Linear(in_features, units))
+            self.mlp_head.add_module(f"activation_{i}", nn.SiLU())
+            self.mlp_head.add_module(f"dropout_{i}", nn.Dropout(dropout_rate))
             in_features = units
         
         # 9. 输出层
@@ -359,38 +354,37 @@ class RNNAttentionHART(nn.Module):
                 elif 'bias' in name:
                     nn.init.zeros_(param)
     
-    def forward(self, inputs):
-        # 1. 创建补丁
-        x = self.patches(inputs)
+    def extract_features(self, x):
+        """
+        明确定义的特征提取方法
+        """
+        # 创建补丁
+        x = self.patches(x)
         
-        # 2. 添加分类token（如果需要）
+        # 添加分类token（如果需要）
         if self.use_tokens:
             x = self.class_token(x)
         
-        # 3. 添加位置编码
+        # 添加位置编码
         x = self.patch_encoder(x)
         
-        # 4. 应用RNN编码器
+        # 应用RNN编码器
         x = self.rnn_encoder(x)
         
-        # 5. 投影到所需维度
+        # 投影到所需维度
         x = self.projection(x)
         
-        # 6. 应用Transformer层
-        for i in range(self.num_transformer_layers):
-            # 获取当前层的模块
-            norm_layer = getattr(self, f"normalizedInputs_{i}")
-            acc_mha_layer = getattr(self, f"AccMHA_{i}")
-            gyro_mha_layer = getattr(self, f"GyroMHA_{i}")
-            
-            # 应用注意力
-            x_norm = norm_layer(x)
-            x = acc_mha_layer(x_norm) + gyro_mha_layer(x_norm) + x
+        # 应用Transformer层
+        for i in range(0, len(self.transformer_layers), 2):
+            # 层归一化
+            norm_x = self.transformer_layers[i](x)
+            # Transformer层
+            x = self.transformer_layers[i+1](norm_x) + x
         
-        # 7. 最终层归一化
+        # 最终层归一化
         x = self.final_layer_norm(x)
         
-        # 8. 提取表示
+        # 提取表示
         if self.use_tokens:
             # 使用分类token作为表示
             representation = x[:, 0]
@@ -398,15 +392,75 @@ class RNNAttentionHART(nn.Module):
             # 使用全局平均池化作为表示
             representation = x.mean(dim=1)
         
-        # 9. 通过MLP头
+        # 存储提取的特征
+        self.intermediate_features = representation
+        
+        return representation
+    
+    def forward(self, inputs):
+        # 提取特征
+        representation = self.extract_features(inputs)
+        
+        # 通过MLP头
         for layer in self.mlp_head:
             representation = layer(representation)
         
-        # 10. 分类层
+        # 分类层
         logits = self.classifier(representation)
         output = F.softmax(logits, dim=-1)
         
         return output
+
+
+class MixedAttention(nn.Module):
+    """
+    线性注意力机制，结合卷积和自注意力
+    """
+    def __init__(self, dim, kernel_size=15, num_heads=4, dropout=0.0):
+        super(MixedAttention, self).__init__()
+        self.dim = dim
+        self.kernel_size = kernel_size
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        assert self.head_dim * num_heads == dim, "维度必须能被头数整除"
+        
+        # 1x1卷积层作为投影
+        self.project = nn.Conv1d(dim, dim, kernel_size=1)
+        
+        # 深度卷积层用于局部注意力
+        self.depthwise_conv = nn.Conv1d(
+            in_channels=dim,
+            out_channels=dim,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+            groups=dim,  # 深度卷积
+            bias=False
+        )
+        
+        # 最终1x1卷积混合特征
+        self.output_proj = nn.Conv1d(dim, dim, kernel_size=1)
+        
+        self.dropout = nn.Dropout(dropout)
+        
+    def forward(self, x):
+        # x: [batch_size, seq_len, dim]
+        batch_size, seq_len, dim = x.shape
+        
+        # 转换为卷积格式 [batch_size, dim, seq_len]
+        x_conv = x.permute(0, 2, 1)
+        
+        # 初始投影
+        x_proj = self.project(x_conv)
+        
+        # 深度卷积
+        x_conv = self.depthwise_conv(x_proj)
+        
+        # 输出投影
+        x_out = self.output_proj(x_conv)
+        x_out = self.dropout(x_out)
+        
+        # 转回序列格式 [batch_size, seq_len, dim]
+        return x_out.permute(0, 2, 1)
 
 
 class RNNLinearAttentionHART(nn.Module):
@@ -436,9 +490,6 @@ class RNNLinearAttentionHART(nn.Module):
         self.projection_half = projection_dim // 2
         self.projection_quarter = projection_dim // 4
         
-        # 定义线性注意力窗口大小
-        self.attention_windows = conv_kernels
-        
         # 定义模型组件
         # 1. 补丁提取
         self.patches = SensorPatches(projection_dim, patch_size, time_step)
@@ -467,57 +518,30 @@ class RNNLinearAttentionHART(nn.Module):
             dropout_rate=dropout_rate
         )
         
-        # 5. 通过投影层将RNN输出维度调整为Transformer输入维度
-        # RNN已经是双向的，所以输出维度与投影维度匹配
-        self.projection = nn.Identity()
-        
-        # 6. 线性注意力层 - 使用局部卷积代替全局注意力
+        # 5. 线性注意力层
         self.attention_layers = nn.ModuleList()
-        for i, kernel_size in enumerate(self.attention_windows):
-            # 添加名称以便于以后获取中间输出
-            name = f"normalizedInputs_{i}"
-            self.register_module(name, nn.LayerNorm(projection_dim))
-            
-            # 线性注意力 - 使用深度可分离卷积
-            name = f"AccMHA_{i}"
-            self.register_module(name, nn.Sequential(
-                nn.Conv1d(self.projection_quarter, self.projection_quarter, 
-                         kernel_size=kernel_size, padding=kernel_size//2, groups=self.projection_quarter//num_heads),
-                nn.SiLU(),
-                nn.Conv1d(self.projection_quarter, self.projection_quarter, kernel_size=1)
+        for i, kernel_size in enumerate(conv_kernels):
+            # 创建混合注意力层
+            self.attention_layers.append(nn.LayerNorm(projection_dim))
+            self.attention_layers.append(MixedAttention(
+                dim=projection_dim,
+                kernel_size=kernel_size,
+                num_heads=num_heads,
+                dropout=dropout_rate
             ))
             
-            name = f"CenterMHA_{i}"
-            self.register_module(name, nn.Sequential(
-                nn.Conv1d(self.projection_half, self.projection_half, 
-                         kernel_size=kernel_size, padding=kernel_size//2, groups=self.projection_half//filter_attention_head),
-                nn.SiLU(),
-                nn.Conv1d(self.projection_half, self.projection_half, kernel_size=1)
-            ))
-            
-            name = f"GyroMHA_{i}"
-            self.register_module(name, nn.Sequential(
-                nn.Conv1d(self.projection_quarter, self.projection_quarter, 
-                         kernel_size=kernel_size, padding=kernel_size//2, groups=self.projection_quarter//num_heads),
-                nn.SiLU(),
-                nn.Conv1d(self.projection_quarter, self.projection_quarter, kernel_size=1)
-            ))
-            
-            # 残差后MLP
-            name = f"feedforward_{i}"
-            self.register_module(name, nn.Sequential(
-                nn.LayerNorm(projection_dim),
-                nn.Linear(projection_dim, projection_dim * 2),
-                nn.SiLU(),
-                nn.Dropout(dropout_rate),
-                nn.Linear(projection_dim * 2, projection_dim),
-                nn.Dropout(dropout_rate)
-            ))
+            # 注册模块以保持与原始代码的兼容性
+            self.register_module(f"normalizedInputs_{i}", self.attention_layers[-2])
+            self.register_module(f"AccMHA_{i}", self.attention_layers[-1])
+            self.register_module(f"GyroMHA_{i}", nn.Identity())  # 占位符保持命名一致
         
-        # 7. 最终层归一化
+        # 存储中间特征
+        self.intermediate_features = None
+        
+        # 6. 最终层归一化
         self.final_layer_norm = nn.LayerNorm(projection_dim)
         
-        # 8. 分类头
+        # 7. 分类头
         self.mlp_head = nn.Sequential(
             nn.Linear(projection_dim, projection_dim * 2),
             nn.SiLU(),
@@ -547,63 +571,36 @@ class RNNLinearAttentionHART(nn.Module):
                 elif 'bias' in name:
                     nn.init.zeros_(param)
     
-    def forward(self, inputs):
-        # 1. 创建补丁
+    def extract_features(self, inputs):
+        """
+        明确定义的特征提取方法
+        """
+        # 创建补丁
         x = self.patches(inputs)
         
-        # 2. 添加分类token（如果需要）
+        # 添加分类token（如果需要）
         if self.use_tokens:
             x = self.class_token(x)
         
-        # 3. 添加位置编码
+        # 添加位置编码
         x = self.patch_encoder(x)
         
-        # 4. 应用RNN编码器
+        # 应用RNN编码器
         x = self.rnn_encoder(x)
         
-        # 5. 投影到所需维度
-        x = self.projection(x)
-        
-        # 6. 应用线性注意力层
-        for i in range(len(self.attention_windows)):
-            # 获取当前层的模块
-            norm_layer = getattr(self, f"normalizedInputs_{i}")
-            acc_mha_layer = getattr(self, f"AccMHA_{i}")
-            center_mha_layer = getattr(self, f"CenterMHA_{i}")
-            gyro_mha_layer = getattr(self, f"GyroMHA_{i}")
-            ff_layer = getattr(self, f"feedforward_{i}")
-            
-            # 应用归一化
-            x_norm = norm_layer(x)
-            
-            # 分离通道
-            acc_x = x_norm[:, :, :self.projection_quarter]
-            center_x = x_norm[:, :, self.projection_quarter:self.projection_quarter+self.projection_half]
-            gyro_x = x_norm[:, :, self.projection_quarter+self.projection_half:]
-            
-            # 转换为卷积格式
-            acc_x = acc_x.permute(0, 2, 1)
-            center_x = center_x.permute(0, 2, 1)
-            gyro_x = gyro_x.permute(0, 2, 1)
-            
-            # 应用卷积注意力
-            acc_out = acc_mha_layer(acc_x).permute(0, 2, 1)
-            center_out = center_mha_layer(center_x).permute(0, 2, 1)
-            gyro_out = gyro_mha_layer(gyro_x).permute(0, 2, 1)
-            
-            # 拼接处理后的特征
-            attention_out = torch.cat([acc_out, center_out, gyro_out], dim=2)
-            
+        # 应用线性注意力层
+        for i in range(0, len(self.attention_layers), 2):
+            # 层归一化
+            norm_x = self.attention_layers[i](x)
+            # 注意力层
+            attn_x = self.attention_layers[i+1](norm_x)
             # 残差连接
-            x = x + attention_out
-            
-            # 前馈网络
-            x = x + ff_layer(x)
+            x = attn_x + x
         
-        # 7. 最终层归一化
+        # 最终层归一化
         x = self.final_layer_norm(x)
         
-        # 8. 提取表示
+        # 提取表示
         if self.use_tokens:
             # 使用分类token作为表示
             representation = x[:, 0]
@@ -611,16 +608,66 @@ class RNNLinearAttentionHART(nn.Module):
             # 使用全局平均池化作为表示
             representation = x.mean(dim=1)
         
-        # 9. 分类层
+        # 存储中间特征
+        self.intermediate_features = representation
+        
+        return representation
+    
+    def forward(self, inputs):
+        # 提取特征
+        representation = self.extract_features(inputs)
+        
+        # 通过分类头
         logits = self.mlp_head(representation)
         
-        return logits
+        # 输出softmax概率
+        return F.softmax(logits, dim=-1)
+
+
+# 修复t-SNE可视化的钩子函数
+def get_model_features(model, dataloader, device):
+    """
+    提取模型的特征表示用于t-SNE可视化
+    """
+    model.eval()
+    all_features = []
+    all_labels = []
+    
+    with torch.no_grad():
+        for inputs, labels in dataloader:
+            inputs = inputs.to(device)
+            
+            # 使用提取特征的方法
+            if hasattr(model, 'extract_features'):
+                features = model.extract_features(inputs).cpu().numpy()
+                all_features.append(features)
+                all_labels.extend(labels.numpy())
+            # 备用方法：如果没有extract_features方法，则尝试从中间特征获取
+            elif hasattr(model, 'intermediate_features') and model.intermediate_features is not None:
+                # 先运行前向传播
+                _ = model(inputs)
+                # 然后获取存储的中间特征
+                features = model.intermediate_features.cpu().numpy()
+                all_features.append(features)
+                all_labels.extend(labels.numpy())
+            else:
+                print("警告: 模型没有提供特征提取方法或中间特征，t-SNE可能无法正常工作")
+    
+    # 确保有特征提取
+    if not all_features:
+        raise ValueError("无法提取特征。请确保模型有extract_features方法或存储中间特征。")
+    
+    # 合并所有特征
+    all_features = np.vstack(all_features)
+    all_labels = np.array(all_labels)
+    
+    return all_features, all_labels
 
 
 # 辅助函数，创建不同大小的模型
 def rnn_attention_hart_small(input_shape, activity_count, **kwargs):
     """
-    创建小型RNNAttentionHART模型
+    创建小型RNN-Attention HART模型
     """
     return RNNAttentionHART(
         input_shape=input_shape,
@@ -640,19 +687,23 @@ def rnn_attention_hart_small(input_shape, activity_count, **kwargs):
     )
 
 
-def rnn_linear_hart_small(input_shape, activity_count, **kwargs):
+def rnn_attention_hart_tiny(input_shape, activity_count, **kwargs):
     """
-    创建小型RNNLinearAttentionHART模型
+    创建超小型RNN-Attention HART模型
     """
-    return RNNLinearAttentionHART(
+    return RNNAttentionHART(
         input_shape=input_shape,
         activity_count=activity_count,
-        projection_dim=128,
+        projection_dim=64,
         patch_size=16,
         time_step=16,
-        num_heads=4,
-        filter_attention_head=4,
-        conv_kernels=[3, 7, 15],
-        dropout_rate=0.2,
+        rnn_hidden_dim=32,
+        rnn_num_layers=1,
+        rnn_type='gru',
+        rnn_bidirectional=True,
+        num_heads=2,
+        num_transformer_layers=1,
+        transformer_dim_feedforward=256,
+        dropout_rate=0.1,
         **kwargs
     )
