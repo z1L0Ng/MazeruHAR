@@ -1,65 +1,118 @@
-# This file may be used to create an environment using:
-# $ conda create --name <env> --file <this file>
-# platform: osx-arm64
-# created-by: conda 24.11.3
-@EXPLICIT
-https://repo.anaconda.com/pkgs/main/osx-arm64/blas-1.0-openblas.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/ca-certificates-2025.2.25-hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/libcxx-14.0.6-h848a8c0_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/libffi-3.4.4-hca03da5_1.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/libsodium-1.0.18-h1a28f6b_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/llvm-openmp-14.0.6-hc6e5704_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/ncurses-6.4-h313beb8_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/tzdata-2025a-h04d1e81_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/xz-5.6.4-h80987f9_1.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/zlib-1.2.13-h18a0788_1.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/libgfortran5-11.3.0-h009349e_28.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/openssl-3.0.16-h02f6b3c_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/readline-8.2-h1a28f6b_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/tk-8.6.14-h6ba3021_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/zeromq-4.3.5-h313beb8_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/libgfortran-5.0.0-11_3_0_hca03da5_28.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/sqlite-3.45.3-h80987f9_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/libopenblas-0.3.21-h269037a_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/python-3.9.21-hb885b13_1.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/appnope-0.1.2-py39hca03da5_1001.conda
-https://repo.anaconda.com/pkgs/main/noarch/backcall-0.2.0-pyhd3eb1b0_0.tar.bz2
-https://repo.anaconda.com/pkgs/main/osx-arm64/debugpy-1.8.11-py39h313beb8_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/decorator-5.1.1-pyhd3eb1b0_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/exceptiongroup-1.2.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/executing-0.8.3-pyhd3eb1b0_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/nest-asyncio-1.6.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/numpy-base-2.0.2-py39ha9811e2_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/packaging-24.2-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/parso-0.8.4-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/pickleshare-0.7.5-pyhd3eb1b0_1003.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/platformdirs-3.10.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/psutil-5.9.0-py39h80987f9_1.conda
-https://repo.anaconda.com/pkgs/main/noarch/ptyprocess-0.7.0-pyhd3eb1b0_2.conda
-https://repo.anaconda.com/pkgs/main/noarch/pure_eval-0.2.2-pyhd3eb1b0_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/pygments-2.15.1-py39hca03da5_1.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/pyzmq-26.2.0-py39h313beb8_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/setuptools-72.1.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/six-1.16.0-pyhd3eb1b0_1.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/tornado-6.4.2-py39h80987f9_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/traitlets-5.14.3-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/typing_extensions-4.12.2-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/wcwidth-0.2.5-pyhd3eb1b0_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/wheel-0.45.1-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/zipp-3.21.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/asttokens-2.0.5-pyhd3eb1b0_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/comm-0.2.1-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/importlib-metadata-8.5.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/jedi-0.19.2-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/jupyter_core-5.7.2-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/matplotlib-inline-0.1.6-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/numpy-2.0.2-py39h3b2db8e_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/pexpect-4.8.0-pyhd3eb1b0_3.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/pip-25.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/prompt-toolkit-3.0.43-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/python-dateutil-2.9.0post0-py39hca03da5_2.conda
-https://repo.anaconda.com/pkgs/main/noarch/importlib_metadata-8.5.0-hd3eb1b0_0.conda
-https://repo.anaconda.com/pkgs/main/noarch/stack_data-0.2.0-pyhd3eb1b0_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/ipython-8.15.0-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/jupyter_client-8.6.3-py39hca03da5_0.conda
-https://repo.anaconda.com/pkgs/main/osx-arm64/ipykernel-6.29.5-py39hca03da5_1.conda
+absl-py==2.1.0
+appnope @ file:///Users/ktietz/demo/mc3/conda-bld/appnope_1629146036738/work
+args==0.1.0
+array-record==0.4.1
+asttokens @ file:///opt/conda/conda-bld/asttokens_1646925590279/work
+astunparse==1.6.3
+backcall @ file:///home/ktietz/src/ci/backcall_1611930011877/work
+cachetools==5.5.2
+certifi==2025.1.31
+charset-normalizer==3.4.1
+click==8.1.8
+clint==0.5.1
+comm @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_3doui0bmzb/croot/comm_1709322861485/work
+contourpy==1.3.0
+coverage==7.8.0
+cycler==0.12.1
+debugpy @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_6a37he2v_t/croot/debugpy_1736267437603/work
+decorator @ file:///opt/conda/conda-bld/decorator_1643638310831/work
+dm-tree==0.1.8
+etils==1.5.2
+exceptiongroup @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_b2258scr33/croot/exceptiongroup_1706031391815/work
+executing @ file:///opt/conda/conda-bld/executing_1646925071911/work
+filelock==3.18.0
+flatbuffers==25.2.10
+fonttools==4.56.0
+fsspec==2025.2.0
+gast==0.4.0
+google-auth==2.38.0
+google-auth-oauthlib==0.4.6
+google-pasta==0.2.0
+grpcio==1.70.0
+h5py==3.13.0
+hickle==5.0.3
+idna==3.10
+importlib_metadata @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_cc4qelzghy/croot/importlib_metadata-suite_1732633706960/work
+importlib_resources==6.5.2
+ipykernel @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_908a9n7o3f/croot/ipykernel_1737660707910/work
+ipython @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_6599f73fa7/croot/ipython_1694181355402/work
+jedi @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_38ctoinnl0/croot/jedi_1733987402850/work
+Jinja2==3.1.6
+joblib==1.4.2
+jupyter_client @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_9b15geux5o/croot/jupyter_client_1737570974957/work
+jupyter_core @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_73nomeum4p/croot/jupyter_core_1718818302815/work
+keras==3.9.2
+Keras-Preprocessing==1.1.2
+kiwisolver==1.4.7
+libclang==18.1.1
+llvmlite==0.43.0
+mamba==0.11.3
+Markdown==3.7
+markdown-it-py==3.0.0
+MarkupSafe==3.0.2
+matplotlib==3.9.4
+matplotlib-inline @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_f6fdc0hldi/croots/recipe/matplotlib-inline_1662014472341/work
+mdurl==0.1.2
+ml_dtypes==0.5.1
+mpmath==1.3.0
+namex==0.0.9
+nest-asyncio @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_310vb5e2a0/croot/nest-asyncio_1708532678212/work
+networkx==3.2.1
+numba==0.60.0
+numpy==1.26.4
+oauthlib==3.2.2
+opt_einsum==3.4.0
+optree==0.15.0
+packaging @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_a6_qk3qyg7/croot/packaging_1734472142254/work
+pandas==2.2.3
+parso @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_8824a1w4md/croot/parso_1733963320105/work
+pexpect @ file:///tmp/build/80754af9/pexpect_1605563209008/work
+pickleshare @ file:///tmp/build/80754af9/pickleshare_1606932040724/work
+pillow==11.1.0
+platformdirs @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_a8u4fy8k9o/croot/platformdirs_1692205661656/work
+promise==2.3
+prompt-toolkit @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_c63v4kqjzr/croot/prompt-toolkit_1704404354115/work
+protobuf==5.29.4
+psutil @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_10oa1k8l11/croot/psutil_1736367646006/work
+ptyprocess @ file:///tmp/build/80754af9/ptyprocess_1609355006118/work/dist/ptyprocess-0.7.0-py2.py3-none-any.whl
+pure-eval @ file:///opt/conda/conda-bld/pure_eval_1646925070566/work
+pyasn1==0.6.1
+pyasn1_modules==0.4.1
+Pygments @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_29bs9f_dh9/croot/pygments_1684279974747/work
+pyparsing==3.2.1
+python-dateutil @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_66ud1l42_h/croot/python-dateutil_1716495741162/work
+pytz==2025.1
+pyzmq @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_95lsut8ymz/croot/pyzmq_1734709560733/work
+requests==2.32.3
+requests-oauthlib==2.0.0
+resampy==0.4.3
+rich==14.0.0
+rsa==4.9
+scikit-learn==1.6.1
+scipy==1.13.1
+seaborn==0.13.2
+six @ file:///tmp/build/80754af9/six_1644875935023/work
+stack-data @ file:///opt/conda/conda-bld/stack_data_1646927590127/work
+sympy==1.13.1
+tensorboard==2.19.0
+tensorboard-data-server==0.7.2
+tensorboard-plugin-wit==1.8.1
+tensorflow-datasets==4.9.3
+tensorflow-macos==2.10.0
+tensorflow-metadata==1.16.1
+termcolor==2.5.0
+threadpoolctl==3.5.0
+toml==0.10.2
+torch==2.6.0
+torchaudio==2.6.0
+torchvision==0.21.0
+tornado @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_0axef5a0m0/croot/tornado_1733960501260/work
+tqdm==4.67.1
+traitlets @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_500m2_1wyk/croot/traitlets_1718227071952/work
+typing_extensions @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_0b3jpv_f79/croot/typing_extensions_1734714864260/work
+tzdata==2025.1
+urllib3==2.3.0
+wcwidth @ file:///Users/ktietz/demo/mc3/conda-bld/wcwidth_1629357192024/work
+Werkzeug==3.1.3
+wrapt==1.17.2
+zipp @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_echurpkwug/croot/zipp_1732630743967/work
