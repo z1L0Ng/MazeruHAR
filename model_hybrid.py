@@ -158,7 +158,7 @@ class RNNEncoder(nn.Module):
 
 class MultiHeadSelfAttention(nn.Module):
     """
-    多头自注意力机制
+    多头注意力
     """
     def __init__(self, embed_dim, num_heads, dropout_rate=0.0):
         super(MultiHeadSelfAttention, self).__init__()
@@ -183,9 +183,6 @@ class MultiHeadSelfAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    """
-    前馈网络，通常用在Transformer块中
-    """
     def __init__(self, d_model, d_ff, dropout_rate=0.1):
         super(FeedForward, self).__init__()
         self.linear1 = nn.Linear(d_model, d_ff)
@@ -228,9 +225,6 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class RNNAttentionHART(nn.Module):
-    """
-    结合RNN编码器和多头注意力机制的人体活动识别模型
-    """
     def __init__(self, input_shape, activity_count, projection_dim=192, patch_size=16, time_step=16, 
                  rnn_hidden_dim=128, rnn_num_layers=2, rnn_type='gru', rnn_bidirectional=True,
                  num_heads=4, num_transformer_layers=2, transformer_dim_feedforward=768,
