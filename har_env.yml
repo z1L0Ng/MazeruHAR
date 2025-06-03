@@ -1,0 +1,30 @@
+name: base
+channels:
+  - defaults
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - _anaconda_depends
+  - python=3.12
+  - setuptools
+  - pip
+  - wheel
+  - anaconda-anon-usage
+  - anaconda-catalogs
+  - anaconda-client
+  - anaconda-project
+  - anaconda-navigator=2.6.4
+  - conda[version='>=23.7']
+  - conda-build
+  - conda-content-trust
+  - conda-libmamba-solver
+  - conda-pack
+  - conda-package-handling
+  - conda-package-streaming
+  - conda-token
+  - python.app
+  - numpy
+  - anaconda-toolbox
+  - matplotlib
+  - pandas
+prefix: /opt/anaconda3
