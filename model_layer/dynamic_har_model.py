@@ -1,271 +1,37 @@
+# model_layer/dynamic_har_model.py
 """
-DynamicHarModel - 任务1.3
-动态模型容器实现，支持基于nn.ModuleDict的动态专家实例化和动态forward流程
+动态HAR模型 - 任务1.3核心模块
+基于配置动态实例化专家模块和融合策略的主模型
 """
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Dict, List, Any, Optional, Union
-from abc import ABC, abstractmethod
-import importlib
+from typing import Dict, Any, List, Tuple, Optional
+from .experts import create_expert_from_config, ExpertModel, validate_expert_config
 
 
-class ExpertModel(nn.Module, ABC):
+class SimpleConcatFusion(nn.Module):
     """
-    专家模型的抽象基类
-    所有专家模型都应该继承这个类
+    简单拼接融合策略
     """
-    
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__()
-        self.config = config
-        self.input_dim = config.get('input_dim', 6)
-        self.hidden_dim = config.get('hidden_dim', 128)
-        self.output_dim = config.get('output_dim', 128)
-        self.dropout = config.get('dropout', 0.1)
+    def __init__(self, expert_output_dims: List[int], output_dim: int, dropout_rate: float = 0.1):
+        super(SimpleConcatFusion, self).__init__()
         
-    @abstractmethod
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        前向传播抽象方法
+        self.expert_output_dims = expert_output_dims
+        self.input_dim = sum(expert_output_dims)
+        self.output_dim = output_dim
         
-        Args:
-            x: 输入张量 [batch_size, seq_len, input_dim]
-            
-        Returns:
-            输出张量 [batch_size, output_dim]
-        """
-        pass
-    
-    def get_output_dim(self) -> int:
-        """获取输出维度"""
-        return self.output_dim
-
-
-class TransformerExpert(ExpertModel):
-    """
-    基于Transformer的专家模型
-    """
-    
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(config)
-        
-        self.num_heads = config.get('num_heads', 8)
-        self.num_layers = config.get('num_layers', 4)
-        self.ff_dim = config.get('ff_dim', self.hidden_dim * 4)
-        
-        # 输入投影
-        self.input_projection = nn.Linear(self.input_dim, self.hidden_dim)
-        
-        # 位置编码
-        self.pos_embedding = nn.Parameter(
-            torch.randn(1, 1000, self.hidden_dim) * 0.02
+        # 融合层
+        self.fusion_layer = nn.Sequential(
+            nn.Linear(self.input_dim, self.output_dim),
+            nn.LayerNorm(self.output_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate)
         )
-        
-        # Transformer层
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=self.hidden_dim,
-            nhead=self.num_heads,
-            dim_feedforward=self.ff_dim,
-            dropout=self.dropout,
-            activation='relu',
-            batch_first=True
-        )
-        self.transformer = nn.TransformerEncoder(
-            encoder_layer, 
-            num_layers=self.num_layers
-        )
-        
-        # 输出投影
-        self.output_projection = nn.Linear(self.hidden_dim, self.output_dim)
-        
-        # 层归一化
-        self.layer_norm = nn.LayerNorm(self.hidden_dim)
-        
-        # Dropout
-        self.dropout_layer = nn.Dropout(self.dropout)
-        
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: [batch_size, seq_len, input_dim]
-        Returns:
-            [batch_size, output_dim]
-        """
-        batch_size, seq_len, _ = x.shape
-        
-        # 输入投影
-        x = self.input_projection(x)  # [batch_size, seq_len, hidden_dim]
-        
-        # 添加位置编码
-        pos_emb = self.pos_embedding[:, :seq_len, :]
-        x = x + pos_emb
-        
-        # 应用Transformer
-        x = self.transformer(x)  # [batch_size, seq_len, hidden_dim]
-        
-        # 全局平均池化
-        x = x.mean(dim=1)  # [batch_size, hidden_dim]
-        
-        # 层归一化和dropout
-        x = self.layer_norm(x)
-        x = self.dropout_layer(x)
-        
-        # 输出投影
-        x = self.output_projection(x)  # [batch_size, output_dim]
-        
-        return x
-
-
-class RNNExpert(ExpertModel):
-    """
-    基于RNN的专家模型
-    """
     
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(config)
-        
-        self.rnn_type = config.get('rnn_type', 'LSTM')
-        self.num_layers = config.get('num_layers', 2)
-        self.bidirectional = config.get('bidirectional', True)
-        
-        # RNN层
-        if self.rnn_type == 'LSTM':
-            self.rnn = nn.LSTM(
-                input_size=self.input_dim,
-                hidden_size=self.hidden_dim,
-                num_layers=self.num_layers,
-                dropout=self.dropout if self.num_layers > 1 else 0,
-                bidirectional=self.bidirectional,
-                batch_first=True
-            )
-        elif self.rnn_type == 'GRU':
-            self.rnn = nn.GRU(
-                input_size=self.input_dim,
-                hidden_size=self.hidden_dim,
-                num_layers=self.num_layers,
-                dropout=self.dropout if self.num_layers > 1 else 0,
-                bidirectional=self.bidirectional,
-                batch_first=True
-            )
-        else:
-            raise ValueError(f"Unsupported RNN type: {self.rnn_type}")
-        
-        # 输出投影
-        rnn_output_dim = self.hidden_dim * (2 if self.bidirectional else 1)
-        self.output_projection = nn.Linear(rnn_output_dim, self.output_dim)
-        
-        # Dropout
-        self.dropout_layer = nn.Dropout(self.dropout)
-        
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: [batch_size, seq_len, input_dim]
-        Returns:
-            [batch_size, output_dim]
-        """
-        # 通过RNN
-        if self.rnn_type == 'LSTM':
-            output, (hidden, cell) = self.rnn(x)
-        else:  # GRU
-            output, hidden = self.rnn(x)
-        
-        # 使用最后一个时间步的输出
-        if self.bidirectional:
-            # 拼接前向和后向的最后隐藏状态
-            hidden = torch.cat([hidden[-2], hidden[-1]], dim=1)
-        else:
-            hidden = hidden[-1]
-        
-        # 应用dropout
-        hidden = self.dropout_layer(hidden)
-        
-        # 输出投影
-        output = self.output_projection(hidden)
-        
-        return output
-
-
-class CNNExpert(ExpertModel):
-    """
-    基于CNN的专家模型
-    """
-    
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(config)
-        
-        self.kernel_sizes = config.get('kernel_sizes', [3, 5, 7])
-        self.num_filters = config.get('num_filters', 64)
-        self.pool_size = config.get('pool_size', 2)
-        
-        # 多尺度卷积层
-        self.conv_layers = nn.ModuleList()
-        for kernel_size in self.kernel_sizes:
-            conv_layer = nn.Sequential(
-                nn.Conv1d(
-                    in_channels=self.input_dim,
-                    out_channels=self.num_filters,
-                    kernel_size=kernel_size,
-                    padding=kernel_size // 2
-                ),
-                nn.BatchNorm1d(self.num_filters),
-                nn.ReLU(),
-                nn.MaxPool1d(kernel_size=self.pool_size),
-                nn.Dropout(self.dropout)
-            )
-            self.conv_layers.append(conv_layer)
-        
-        # 全局平均池化
-        self.global_pool = nn.AdaptiveAvgPool1d(1)
-        
-        # 输出投影
-        self.output_projection = nn.Linear(
-            len(self.kernel_sizes) * self.num_filters, 
-            self.output_dim
-        )
-        
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: [batch_size, seq_len, input_dim]
-        Returns:
-            [batch_size, output_dim]
-        """
-        # 转换为卷积格式
-        x = x.permute(0, 2, 1)  # [batch_size, input_dim, seq_len]
-        
-        # 多尺度卷积
-        conv_outputs = []
-        for conv_layer in self.conv_layers:
-            conv_out = conv_layer(x)  # [batch_size, num_filters, seq_len']
-            conv_out = self.global_pool(conv_out)  # [batch_size, num_filters, 1]
-            conv_out = conv_out.squeeze(2)  # [batch_size, num_filters]
-            conv_outputs.append(conv_out)
-        
-        # 拼接所有尺度的特征
-        x = torch.cat(conv_outputs, dim=1)  # [batch_size, total_filters]
-        
-        # 输出投影
-        x = self.output_projection(x)
-        
-        return x
-
-
-class FusionLayer(nn.Module):
-    """
-    融合层基类
-    """
-    
-    def __init__(self, strategy: str, config: Dict[str, Any]):
-        super().__init__()
-        self.strategy = strategy
-        self.config = config
-        
     def forward(self, expert_outputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        融合多个专家的输出
+        前向传播
         
         Args:
             expert_outputs: 专家输出字典 {expert_name: tensor}
@@ -273,67 +39,95 @@ class FusionLayer(nn.Module):
         Returns:
             融合后的特征张量
         """
-        if self.strategy == 'concatenate':
-            return self._concatenate_fusion(expert_outputs)
-        elif self.strategy == 'average':
-            return self._average_fusion(expert_outputs)
-        elif self.strategy == 'attention':
-            return self._attention_fusion(expert_outputs)
-        else:
-            raise ValueError(f"Unsupported fusion strategy: {self.strategy}")
-    
-    def _concatenate_fusion(self, expert_outputs: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """拼接融合"""
-        outputs = list(expert_outputs.values())
-        return torch.cat(outputs, dim=1)
-    
-    def _average_fusion(self, expert_outputs: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """平均融合"""
-        outputs = list(expert_outputs.values())
-        stacked = torch.stack(outputs, dim=1)  # [batch_size, num_experts, feature_dim]
-        return torch.mean(stacked, dim=1)
-    
-    def _attention_fusion(self, expert_outputs: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """注意力融合"""
-        outputs = list(expert_outputs.values())
-        stacked = torch.stack(outputs, dim=1)  # [batch_size, num_experts, feature_dim]
+        # 按顺序拼接所有专家输出
+        outputs = []
+        for expert_name, output in expert_outputs.items():
+            outputs.append(output)
         
-        # 简单的注意力机制
-        attention_weights = torch.mean(stacked, dim=2, keepdim=True)  # [batch_size, num_experts, 1]
-        attention_weights = F.softmax(attention_weights, dim=1)
+        # 拼接
+        fused_features = torch.cat(outputs, dim=1)
+        
+        # 通过融合层
+        result = self.fusion_layer(fused_features)
+        
+        return result
+
+
+class WeightedSumFusion(nn.Module):
+    """
+    加权求和融合策略
+    """
+    def __init__(self, expert_output_dims: List[int], output_dim: int, dropout_rate: float = 0.1):
+        super(WeightedSumFusion, self).__init__()
+        
+        self.expert_output_dims = expert_output_dims
+        self.output_dim = output_dim
+        self.num_experts = len(expert_output_dims)
+        
+        # 确保所有专家输出维度相同
+        if not all(dim == output_dim for dim in expert_output_dims):
+            # 如果维度不同，需要投影层
+            self.projection_layers = nn.ModuleDict()
+            for i, dim in enumerate(expert_output_dims):
+                if dim != output_dim:
+                    self.projection_layers[f'expert_{i}'] = nn.Linear(dim, output_dim)
+        else:
+            self.projection_layers = None
+        
+        # 可学习的权重
+        self.weights = nn.Parameter(torch.ones(self.num_experts))
+        self.dropout = nn.Dropout(dropout_rate)
+        
+    def forward(self, expert_outputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        前向传播
+        """
+        outputs = []
+        expert_names = list(expert_outputs.keys())
+        
+        for i, (expert_name, output) in enumerate(expert_outputs.items()):
+            # 投影到相同维度（如果需要）
+            if self.projection_layers and f'expert_{i}' in self.projection_layers:
+                output = self.projection_layers[f'expert_{i}'](output)
+            
+            outputs.append(output)
+        
+        # 堆叠所有输出
+        stacked_outputs = torch.stack(outputs, dim=1)  # (batch_size, num_experts, output_dim)
+        
+        # 应用softmax权重
+        weights = torch.softmax(self.weights, dim=0)
         
         # 加权求和
-        fused = torch.sum(stacked * attention_weights, dim=1)
-        return fused
+        weighted_output = torch.sum(stacked_outputs * weights.view(1, -1, 1), dim=1)
+        
+        # Dropout
+        result = self.dropout(weighted_output)
+        
+        return result
 
 
 class DynamicHarModel(nn.Module):
     """
-    动态HAR模型容器
-    支持配置驱动的专家模型实例化和动态前向传播
+    动态HAR模型
+    基于配置动态实例化专家模块和融合策略
     """
     
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__()
+    def __init__(self, config: Any):
+        """
+        初始化动态HAR模型
+        
+        Args:
+            config: 配置对象，包含architecture、experts、fusion等配置
+        """
+        super(DynamicHarModel, self).__init__()
+        
         self.config = config
         
-        # 获取架构配置
-        self.architecture_config = config.get('architecture', {})
-        self.experts_config = self.architecture_config.get('experts', {})
-        self.fusion_config = self.architecture_config.get('fusion', {})
-        self.classifier_config = self.architecture_config.get('classifier', {})
+        # 验证配置
+        self._validate_config()
         
-        # 获取数据集信息
-        self.num_classes = config.get('labels', {}).get('num_classes', 8)
-        
-        # 专家模型注册表
-        self.expert_registry = {
-            'TransformerExpert': TransformerExpert,
-            'RNNExpert': RNNExpert,
-            'CNNExpert': CNNExpert,
-        }
-        
-        # 动态创建专家模型
+        # 动态创建专家模块
         self.experts = nn.ModuleDict()
         self._create_experts()
         
@@ -343,200 +137,255 @@ class DynamicHarModel(nn.Module):
         # 创建分类器
         self.classifier = self._create_classifier()
         
-        # 初始化权重
-        self.apply(self._init_weights)
+        # 存储中间特征
+        self.intermediate_features = {}
         
+        # 应用权重初始化
+        self.apply(self._init_weights)
+    
+    def _validate_config(self):
+        """
+        验证配置有效性
+        """
+        required_sections = ['architecture']
+        for section in required_sections:
+            if not hasattr(self.config, section):
+                raise ValueError(f"Missing configuration section: {section}")
+        
+        if not hasattr(self.config.architecture, 'experts'):
+            raise ValueError("Missing experts configuration in architecture")
+        
+        if not hasattr(self.config.architecture, 'fusion'):
+            raise ValueError("Missing fusion configuration in architecture")
+    
     def _create_experts(self):
         """
-        根据配置动态创建专家模型
+        动态创建专家模块
         """
-        for expert_name, expert_config in self.experts_config.items():
-            expert_type = expert_config.get('type', 'TransformerExpert')
-            expert_params = expert_config.get('params', {})
-            
-            # 获取专家类
-            if expert_type in self.expert_registry:
-                expert_class = self.expert_registry[expert_type]
-            else:
-                # 尝试动态导入
-                try:
-                    module_name, class_name = expert_type.rsplit('.', 1)
-                    module = importlib.import_module(module_name)
-                    expert_class = getattr(module, class_name)
-                except (ImportError, AttributeError):
-                    raise ValueError(f"Unknown expert type: {expert_type}")
+        experts_config = self.config.architecture.experts
+        
+        for expert_name, expert_config in experts_config.items():
+            # 验证专家配置
+            if not validate_expert_config(expert_config):
+                raise ValueError(f"Invalid configuration for expert: {expert_name}")
             
             # 创建专家实例
-            expert_instance = expert_class(expert_params)
-            self.experts[expert_name] = expert_instance
-            
-            print(f"Created expert: {expert_name} ({expert_type})")
+            try:
+                expert = create_expert_from_config(expert_config)
+                self.experts[expert_name] = expert
+                print(f"✓ Created expert: {expert_name} ({expert_config['type']})")
+            except Exception as e:
+                print(f"✗ Failed to create expert {expert_name}: {e}")
+                raise
     
-    def _create_fusion_layer(self) -> FusionLayer:
+    def _create_fusion_layer(self):
         """
         创建融合层
         """
-        strategy = self.fusion_config.get('strategy', 'concatenate')
-        return FusionLayer(strategy, self.fusion_config)
-    
-    def _create_classifier(self) -> nn.Module:
-        """
-        创建分类器
-        """
-        classifier_type = self.classifier_config.get('type', 'MLP')
+        fusion_config = self.config.architecture.fusion
+        strategy = fusion_config.get('strategy', 'concat')
         
-        if classifier_type == 'MLP':
-            return self._create_mlp_classifier()
-        else:
-            raise ValueError(f"Unsupported classifier type: {classifier_type}")
-    
-    def _create_mlp_classifier(self) -> nn.Module:
-        """
-        创建MLP分类器
-        """
-        layers = self.classifier_config.get('layers', [256, 128, self.num_classes])
-        activation = self.classifier_config.get('activation', 'relu')
-        dropout = self.classifier_config.get('dropout', 0.2)
+        # 获取专家输出维度
+        expert_output_dims = []
+        for expert_name, expert in self.experts.items():
+            expert_output_dims.append(expert.get_output_dim())
         
-        # 计算输入维度
-        input_dim = self._calculate_fusion_output_dim()
+        # 获取融合输出维度
+        fusion_output_dim = fusion_config.get('output_dim', 256)
+        dropout_rate = fusion_config.get('dropout_rate', 0.1)
         
-        # 构建MLP层
-        mlp_layers = []
-        prev_dim = input_dim
-        
-        for i, layer_dim in enumerate(layers[:-1]):
-            mlp_layers.append(nn.Linear(prev_dim, layer_dim))
-            
-            if activation == 'relu':
-                mlp_layers.append(nn.ReLU())
-            elif activation == 'gelu':
-                mlp_layers.append(nn.GELU())
-            elif activation == 'silu':
-                mlp_layers.append(nn.SiLU())
-            
-            mlp_layers.append(nn.Dropout(dropout))
-            prev_dim = layer_dim
-        
-        # 输出层
-        mlp_layers.append(nn.Linear(prev_dim, layers[-1]))
-        
-        return nn.Sequential(*mlp_layers)
-    
-    def _calculate_fusion_output_dim(self) -> int:
-        """
-        计算融合层输出维度
-        """
-        strategy = self.fusion_config.get('strategy', 'concatenate')
-        
-        if strategy == 'concatenate':
-            # 拼接所有专家的输出维度
-            total_dim = 0
-            for expert_name, expert in self.experts.items():
-                total_dim += expert.get_output_dim()
-            return total_dim
-        elif strategy in ['average', 'attention']:
-            # 假设所有专家输出维度相同
-            first_expert = next(iter(self.experts.values()))
-            return first_expert.get_output_dim()
+        # 创建融合层
+        if strategy == 'concat':
+            return SimpleConcatFusion(expert_output_dims, fusion_output_dim, dropout_rate)
+        elif strategy == 'weighted_sum':
+            return WeightedSumFusion(expert_output_dims, fusion_output_dim, dropout_rate)
         else:
             raise ValueError(f"Unsupported fusion strategy: {strategy}")
     
+    def _create_classifier(self):
+        """
+        创建分类器
+        """
+        fusion_output_dim = self.config.architecture.fusion.get('output_dim', 256)
+        num_classes = self.config.dataset.get('num_classes', 8)
+        
+        classifier_config = self.config.architecture.get('classifier', {})
+        hidden_dims = classifier_config.get('hidden_dims', [])
+        dropout_rate = classifier_config.get('dropout_rate', 0.1)
+        
+        # 构建分类器
+        layers = []
+        
+        # 隐藏层
+        current_dim = fusion_output_dim
+        for hidden_dim in hidden_dims:
+            layers.extend([
+                nn.Linear(current_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout_rate)
+            ])
+            current_dim = hidden_dim
+        
+        # 输出层
+        layers.append(nn.Linear(current_dim, num_classes))
+        
+        return nn.Sequential(*layers)
+    
+    def forward(self, data_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        前向传播
+        
+        Args:
+            data_dict: 数据字典，键为模态名称，值为数据张量
+            
+        Returns:
+            分类预测结果
+        """
+        # 字典推导，并行提取所有模态的特征
+        expert_outputs = {}
+        
+        for expert_name, expert in self.experts.items():
+            # 获取对应的数据
+            # 这里假设数据字典的键与专家名称对应
+            # 实际实现中可能需要更复杂的映射逻辑
+            if expert_name in data_dict:
+                data = data_dict[expert_name]
+            else:
+                # 如果没有直接对应，使用第一个可用的数据
+                # 这是一个简化的实现，实际中需要更好的映射策略
+                data = next(iter(data_dict.values()))
+            
+            # 专家特征提取
+            expert_output = expert(data)
+            expert_outputs[expert_name] = expert_output
+            
+            # 存储中间特征
+            if hasattr(expert, 'intermediate_features'):
+                self.intermediate_features[expert_name] = expert.intermediate_features
+        
+        # 融合特征
+        fused_features = self.fusion_layer(expert_outputs)
+        
+        # 存储融合后的特征
+        self.intermediate_features['fused'] = fused_features.detach()
+        
+        # 分类
+        logits = self.classifier(fused_features)
+        
+        return logits
+    
+    def extract_features(self, data_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """
+        提取特征
+        
+        Args:
+            data_dict: 数据字典
+            
+        Returns:
+            特征字典
+        """
+        # 执行前向传播
+        _ = self.forward(data_dict)
+        
+        # 返回中间特征
+        return self.intermediate_features.copy()
+    
+    def get_expert_names(self) -> List[str]:
+        """
+        获取专家名称列表
+        
+        Returns:
+            专家名称列表
+        """
+        return list(self.experts.keys())
+    
+    def get_expert_configs(self) -> Dict[str, Dict[str, Any]]:
+        """
+        获取专家配置信息
+        
+        Returns:
+            专家配置字典
+        """
+        configs = {}
+        for expert_name, expert in self.experts.items():
+            configs[expert_name] = expert.get_config()
+        
+        return configs
+    
+    def freeze_expert(self, expert_name: str):
+        """
+        冻结特定专家的参数
+        
+        Args:
+            expert_name: 专家名称
+        """
+        if expert_name in self.experts:
+            self.experts[expert_name].freeze_parameters()
+            print(f"Frozen expert: {expert_name}")
+        else:
+            print(f"Expert not found: {expert_name}")
+    
+    def unfreeze_expert(self, expert_name: str):
+        """
+        解冻特定专家的参数
+        
+        Args:
+            expert_name: 专家名称
+        """
+        if expert_name in self.experts:
+            self.experts[expert_name].unfreeze_parameters()
+            print(f"Unfrozen expert: {expert_name}")
+        else:
+            print(f"Expert not found: {expert_name}")
+    
+    def get_parameter_count(self) -> Dict[str, int]:
+        """
+        获取参数数量统计
+        
+        Returns:
+            参数数量字典
+        """
+        counts = {}
+        
+        # 专家参数
+        for expert_name, expert in self.experts.items():
+            counts[f"expert_{expert_name}"] = expert.get_parameter_count()
+        
+        # 融合层参数
+        fusion_params = sum(p.numel() for p in self.fusion_layer.parameters() if p.requires_grad)
+        counts["fusion_layer"] = fusion_params
+        
+        # 分类器参数
+        classifier_params = sum(p.numel() for p in self.classifier.parameters() if p.requires_grad)
+        counts["classifier"] = classifier_params
+        
+        # 总参数
+        counts["total"] = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        
+        return counts
+    
     def _init_weights(self, module):
         """
-        初始化模型权重
+        权重初始化
         """
         if isinstance(module, nn.Linear):
             nn.init.xavier_uniform_(module.weight)
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.Conv1d):
-            nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
-        elif isinstance(module, (nn.BatchNorm1d, nn.LayerNorm)):
+        elif isinstance(module, nn.LayerNorm):
             nn.init.ones_(module.weight)
             nn.init.zeros_(module.bias)
     
-    def forward(self, data_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """
-        动态前向传播
-        
-        Args:
-            data_dict: 数据字典 {modality: tensor}
-            
-        Returns:
-            分类结果 [batch_size, num_classes]
-        """
-        # 1. 专家特征提取
-        expert_outputs = {}
-        
-        for expert_name, expert_model in self.experts.items():
-            # 获取专家对应的模态数据
-            modality = self._get_expert_modality(expert_name)
-            
-            if modality in data_dict:
-                modality_data = data_dict[modality]
-                expert_output = expert_model(modality_data)
-                expert_outputs[expert_name] = expert_output
-            else:
-                print(f"Warning: Modality {modality} not found in data_dict for expert {expert_name}")
-        
-        # 2. 融合特征
-        if not expert_outputs:
-            raise ValueError("No expert outputs available for fusion")
-        
-        fused_features = self.fusion_layer(expert_outputs)
-        
-        # 3. 分类
-        logits = self.classifier(fused_features)
-        
-        return logits
-    
-    def _get_expert_modality(self, expert_name: str) -> str:
-        """
-        获取专家对应的模态名称
-        """
-        expert_config = self.experts_config.get(expert_name, {})
-        return expert_config.get('modality', expert_name.split('_')[0])  # 默认使用专家名称前缀
-    
-    def get_expert_info(self) -> Dict[str, Any]:
-        """
-        获取专家信息
-        """
-        info = {}
-        for expert_name, expert in self.experts.items():
-            info[expert_name] = {
-                'type': type(expert).__name__,
-                'output_dim': expert.get_output_dim(),
-                'modality': self._get_expert_modality(expert_name),
-                'parameters': sum(p.numel() for p in expert.parameters())
-            }
-        return info
-    
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        获取模型信息
-        """
-        total_params = sum(p.numel() for p in self.parameters())
-        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        
-        return {
-            'total_parameters': total_params,
-            'trainable_parameters': trainable_params,
-            'num_experts': len(self.experts),
-            'fusion_strategy': self.fusion_config.get('strategy', 'concatenate'),
-            'num_classes': self.num_classes,
-            'experts': self.get_expert_info()
-        }
+    def __repr__(self):
+        return f"DynamicHarModel(experts={list(self.experts.keys())}, fusion={self.config.architecture.fusion.get('strategy', 'concat')})"
 
 
-def create_dynamic_har_model(config: Dict[str, Any]) -> DynamicHarModel:
+def create_dynamic_har_model(config: Any) -> DynamicHarModel:
     """
     创建动态HAR模型的工厂函数
     
     Args:
-        config: 配置字典
+        config: 配置对象
         
     Returns:
         DynamicHarModel实例
@@ -544,73 +393,154 @@ def create_dynamic_har_model(config: Dict[str, Any]) -> DynamicHarModel:
     return DynamicHarModel(config)
 
 
-# 示例配置
-def get_example_config():
+# 便捷函数：创建基于字典配置的模型
+def create_model_from_dict(config_dict: Dict[str, Any]) -> DynamicHarModel:
+    """
+    从字典配置创建模型
+    
+    Args:
+        config_dict: 配置字典
+        
+    Returns:
+        DynamicHarModel实例
+    """
+    from types import SimpleNamespace
+    
+    # 递归转换字典为对象
+    def dict_to_namespace(d):
+        if isinstance(d, dict):
+            return SimpleNamespace(**{k: dict_to_namespace(v) for k, v in d.items()})
+        elif isinstance(d, list):
+            return [dict_to_namespace(item) for item in d]
+        else:
+            return d
+    
+    config = dict_to_namespace(config_dict)
+    return DynamicHarModel(config)
+
+
+# 示例配置函数
+def get_example_config() -> Dict[str, Any]:
     """
     获取示例配置
+    
+    Returns:
+        示例配置字典
     """
     return {
-        'labels': {
-            'num_classes': 8
+        "dataset": {
+            "num_classes": 8,
+            "activity_labels": ["Still", "Walk", "Run", "Bike", "Car", "Bus", "Train", "Subway"]
         },
-        'architecture': {
-            'experts': {
-                'imu_expert': {
-                    'type': 'TransformerExpert',
-                    'modality': 'imu',
-                    'params': {
-                        'input_dim': 6,
-                        'hidden_dim': 128,
-                        'output_dim': 128,
-                        'num_heads': 8,
-                        'num_layers': 4,
-                        'dropout': 0.1
+        "architecture": {
+            "experts": {
+                "transformer_expert": {
+                    "type": "transformer",
+                    "input_shape": [500, 6],
+                    "output_dim": 128,
+                    "params": {
+                        "projection_dim": 128,
+                        "patch_size": 16,
+                        "time_step": 16,
+                        "num_heads": 4,
+                        "num_layers": 2,
+                        "d_ff": 512,
+                        "dropout_rate": 0.1,
+                        "use_cls_token": True
                     }
                 },
-                'pressure_expert': {
-                    'type': 'RNNExpert',
-                    'modality': 'pressure',
-                    'params': {
-                        'input_dim': 1,
-                        'hidden_dim': 64,
-                        'output_dim': 64,
-                        'rnn_type': 'LSTM',
-                        'num_layers': 2,
-                        'bidirectional': True,
-                        'dropout': 0.1
+                "rnn_expert": {
+                    "type": "rnn",
+                    "input_shape": [500, 6],
+                    "output_dim": 128,
+                    "params": {
+                        "hidden_dim": 64,
+                        "num_layers": 2,
+                        "rnn_type": "gru",
+                        "dropout_rate": 0.1,
+                        "bidirectional": True,
+                        "pooling_method": "last"
+                    }
+                },
+                "cnn_expert": {
+                    "type": "cnn",
+                    "input_shape": [500, 6],
+                    "output_dim": 128,
+                    "params": {
+                        "num_layers": 3,
+                        "base_channels": 64,
+                        "kernel_sizes": [3, 5, 7],
+                        "dropout_rate": 0.1,
+                        "use_residual": True,
+                        "use_multiscale": True
                     }
                 }
             },
-            'fusion': {
-                'strategy': 'concatenate'
+            "fusion": {
+                "strategy": "concat",
+                "output_dim": 256,
+                "dropout_rate": 0.1
             },
-            'classifier': {
-                'type': 'MLP',
-                'layers': [192, 128, 64, 8],
-                'activation': 'relu',
-                'dropout': 0.2
+            "classifier": {
+                "hidden_dims": [128],
+                "dropout_rate": 0.1
             }
         }
     }
 
 
-if __name__ == "__main__":
-    # 测试DynamicHarModel
-    config = get_example_config()
-    model = create_dynamic_har_model(config)
+def create_example_model() -> DynamicHarModel:
+    """
+    创建示例模型
     
-    print("Model created successfully!")
-    print(f"Model info: {model.get_model_info()}")
+    Returns:
+        DynamicHarModel实例
+    """
+    config_dict = get_example_config()
+    return create_model_from_dict(config_dict)
+
+
+# 模型测试函数
+def test_dynamic_model():
+    """
+    测试动态模型
+    """
+    print("Testing DynamicHarModel...")
     
-    # 创建测试数据
-    batch_size = 4
-    seq_len = 128
-    test_data = {
-        'imu': torch.randn(batch_size, seq_len, 6),
-        'pressure': torch.randn(batch_size, seq_len, 1)
-    }
+    # 创建示例模型
+    model = create_example_model()
+    
+    # 打印模型信息
+    print(f"Model: {model}")
+    print(f"Experts: {model.get_expert_names()}")
+    print(f"Parameter counts: {model.get_parameter_count()}")
     
     # 测试前向传播
-    output = model(test_data)
-    print(f"Output shape: {output.shape}")
-    print(f"Output: {output}")
+    batch_size = 4
+    time_steps = 500
+    features = 6
+    
+    # 创建测试数据
+    test_data = {
+        "transformer_expert": torch.randn(batch_size, time_steps, features),
+        "rnn_expert": torch.randn(batch_size, time_steps, features),
+        "cnn_expert": torch.randn(batch_size, time_steps, features)
+    }
+    
+    # 前向传播
+    with torch.no_grad():
+        outputs = model(test_data)
+        print(f"Output shape: {outputs.shape}")
+        
+        # 测试特征提取
+        features = model.extract_features(test_data)
+        print(f"Extracted features keys: {list(features.keys())}")
+        for key, feature in features.items():
+            if feature is not None:
+                print(f"  {key}: {feature.shape}")
+    
+    print("✓ DynamicHarModel test passed!")
+
+
+if __name__ == "__main__":
+    test_dynamic_model()
