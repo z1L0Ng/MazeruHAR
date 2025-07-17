@@ -13,7 +13,14 @@ __pycache__/
 env/
 *.env
 .venv/
-*.yaml
+
+# 修改：允许配置文件
+# *.yaml  # 注释掉这一行
+# 或者添加例外规则：
+!config/*.yaml
+!config/default_configs/*.yaml
+!config/experiments/*.yaml
+!config/generated/*.yaml
 
 # VSCode
 .vscode/
@@ -47,3 +54,8 @@ Thumbs.db
 # Ignore data files
 *.hkl
 HART_Results/
+
+# 新增：配置系统生成的文件
+config/generated/
+config/experiments/
+*.config.yaml
