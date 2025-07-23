@@ -45,6 +45,7 @@ training:
   scheduler: "cosine" # 'cosine', 'step', null
   label_smoothing: 0.1
   gradient_clip_norm: 1.0
+  early_stopping_patience: 10
 
 # 可视化配置
 visualization:
