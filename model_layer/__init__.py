@@ -1,260 +1,199 @@
 # model_layer/__init__.py
 """
-模型层 - 任务1.3核心模块
-提供动态HAR模型和专家系统的完整实现
+模型层 - 完整实现包含任务1.3和任务2.2
+支持动态专家模型和多种融合策略
 """
 
-# 导入动态HAR模型
 from .dynamic_har_model import (
+    # 核心模型类
     DynamicHarModel,
     create_dynamic_har_model,
-    create_model_from_dict,
-    get_example_config,
-    create_example_model,
-    SimpleConcatFusion,
-    WeightedSumFusion
-)
-
-# 导入专家模块
-from .experts import (
-    # 基础类
-    ExpertModel,
-    DummyExpert,
     
-    # 专家类
+    # 专家模型基类和实现
+    ExpertModel,
     TransformerExpert,
     RNNExpert,
     CNNExpert,
     
-    # 工厂函数
-    create_expert_from_config,
-    create_expert_from_preset,
+    # 融合层
+    FusionLayer,
     
-    # Transformer工厂函数
-    create_transformer_expert_small,
-    create_transformer_expert_medium,
-    create_transformer_expert_large,
-    
-    # RNN工厂函数
-    create_rnn_expert_lstm,
-    create_rnn_expert_gru,
-    create_rnn_expert_channel_specific,
-    create_rnn_expert_deep,
-    
-    # CNN工厂函数
-    create_cnn_expert_simple,
-    create_cnn_expert_multiscale,
-    create_cnn_expert_deep,
-    create_cnn_expert_lightweight,
-    
-    # 工具函数
-    list_expert_types,
-    list_expert_presets,
-    get_expert_class,
-    validate_expert_config,
-    
-    # 常量
-    EXPERT_TYPES,
-    EXPERT_PRESETS,
-    HYBRID_AVAILABLE
+    # 配置和工具函数
+    get_example_config
 )
-
-# 尝试导入混合专家相关内容
-try:
-    from .experts import (
-        HybridExpert,
-        create_hybrid_expert_small,
-        create_hybrid_expert_medium,
-        create_hybrid_expert_large,
-        create_hybrid_expert_attention_fusion
-    )
-    _hybrid_exports = [
-        'HybridExpert',
-        'create_hybrid_expert_small',
-        'create_hybrid_expert_medium',
-        'create_hybrid_expert_large',
-        'create_hybrid_expert_attention_fusion'
-    ]
-except ImportError:
-    _hybrid_exports = []
 
 # 版本信息
 __version__ = "1.0.0"
+__author__ = "MazeruHAR Team"
 
-# 导出所有主要组件
+# 导出的公共接口
 __all__ = [
-    # 动态HAR模型
+    # 主要模型类
     'DynamicHarModel',
     'create_dynamic_har_model',
-    'create_model_from_dict',
-    'get_example_config',
-    'create_example_model',
     
-    # 融合策略
-    'SimpleConcatFusion',
-    'WeightedSumFusion',
-    
-    # 专家基础类
+    # 专家模型
     'ExpertModel',
-    'DummyExpert',
-    
-    # 专家实现类
     'TransformerExpert',
-    'RNNExpert',
+    'RNNExpert', 
     'CNNExpert',
     
-    # 专家工厂函数
-    'create_expert_from_config',
-    'create_expert_from_preset',
-    
-    # Transformer专家工厂
-    'create_transformer_expert_small',
-    'create_transformer_expert_medium',
-    'create_transformer_expert_large',
-    
-    # RNN专家工厂
-    'create_rnn_expert_lstm',
-    'create_rnn_expert_gru',
-    'create_rnn_expert_channel_specific',
-    'create_rnn_expert_deep',
-    
-    # CNN专家工厂
-    'create_cnn_expert_simple',
-    'create_cnn_expert_multiscale',
-    'create_cnn_expert_deep',
-    'create_cnn_expert_lightweight',
+    # 融合层
+    'FusionLayer',
     
     # 工具函数
-    'list_expert_types',
-    'list_expert_presets',
-    'get_expert_class',
-    'validate_expert_config',
-    
-    # 常量
-    'EXPERT_TYPES',
-    'EXPERT_PRESETS',
-    'HYBRID_AVAILABLE'
+    'get_example_config'
 ]
 
-# 添加混合专家相关导出（如果可用）
-__all__.extend(_hybrid_exports)
+# 模块级别的配置
+SUPPORTED_EXPERT_TYPES = [
+    'TransformerExpert',
+    'RNNExpert',
+    'CNNExpert'
+]
 
+SUPPORTED_FUSION_STRATEGIES = [
+    'concatenate',      # 任务2.2核心 - 拼接融合
+    'average',          # 平均融合
+    'weighted_sum',     # 加权求和融合
+    'attention'         # 注意力融合
+]
 
-def print_model_layer_info():
-    """
-    打印模型层信息
-    """
-    print("=" * 50)
-    print("模型层 (Model Layer) - 任务1.3核心模块")
-    print("=" * 50)
-    print(f"版本: {__version__}")
-    print(f"支持的专家类型: {list_expert_types()}")
-    print(f"预设专家配置: {len(EXPERT_PRESETS)} 个")
-    print(f"融合策略: SimpleConcatFusion, WeightedSumFusion")
-    print("=" * 50)
-    
-    # 打印专家预设信息
-    print("\n可用的专家预设:")
-    presets = list_expert_presets()
-    for name, description in presets.items():
-        print(f"  • {name}: {description}")
-    
-    print("\n使用示例:")
-    print("  from model_layer import create_example_model")
-    print("  model = create_example_model()")
-    print("  print(model)")
-
-
-def create_minimal_example():
-    """
-    创建最小示例
-    """
-    print("创建最小动态HAR模型示例...")
-    
-    # 最小配置
-    minimal_config = {
-        "dataset": {
-            "num_classes": 8
-        },
-        "architecture": {
-            "experts": {
-                "simple_rnn": {
-                    "type": "rnn",
-                    "input_shape": [100, 6],
-                    "output_dim": 64,
-                    "params": {
-                        "hidden_dim": 32,
-                        "num_layers": 1,
-                        "rnn_type": "gru"
-                    }
+# 默认配置模板
+DEFAULT_CONFIG_TEMPLATE = {
+    'labels': {
+        'num_classes': 8
+    },
+    'architecture': {
+        'experts': {
+            'default_expert': {
+                'type': 'TransformerExpert',
+                'modality': 'sensor_data',
+                'params': {
+                    'input_dim': 6,
+                    'hidden_dim': 128,
+                    'output_dim': 128,
+                    'num_heads': 8,
+                    'num_layers': 4,
+                    'dropout': 0.1
                 }
-            },
-            "fusion": {
-                "strategy": "concat",
-                "output_dim": 64
             }
+        },
+        'fusion': {
+            'strategy': 'concatenate',
+            'params': {}
+        },
+        'classifier': {
+            'type': 'MLP',
+            'layers': [128, 64, 8],
+            'activation': 'relu',
+            'dropout': 0.2
         }
     }
-    
-    # 创建模型
-    model = create_model_from_dict(minimal_config)
-    
-    print(f"✓ 创建成功: {model}")
-    print(f"✓ 专家数量: {len(model.get_expert_names())}")
-    print(f"✓ 参数数量: {model.get_parameter_count()}")
-    
-    return model
+}
 
 
-def demo_expert_creation():
+def get_supported_expert_types():
+    """获取支持的专家模型类型"""
+    return SUPPORTED_EXPERT_TYPES.copy()
+
+
+def get_supported_fusion_strategies():
+    """获取支持的融合策略"""
+    return SUPPORTED_FUSION_STRATEGIES.copy()
+
+
+def validate_config(config: dict) -> bool:
     """
-    演示专家创建
+    验证配置文件的有效性
+    
+    Args:
+        config: 配置字典
+        
+    Returns:
+        是否有效
     """
-    print("演示专家创建...")
-    
-    input_shape = (100, 6)
-    output_dim = 64
-    
-    # 创建不同类型的专家
-    experts = {
-        "Transformer (Small)": create_transformer_expert_small(input_shape, output_dim),
-        "RNN (GRU)": create_rnn_expert_gru(input_shape, output_dim),
-        "CNN (Multi-scale)": create_cnn_expert_multiscale(input_shape, output_dim)
-    }
-    
-    # 如果混合专家可用，添加到演示中
-    if HYBRID_AVAILABLE:
-        try:
-            experts["Hybrid (Medium)"] = create_hybrid_expert_medium(input_shape, output_dim)
-        except Exception as e:
-            print(f"Warning: Could not create hybrid expert: {e}")
-    
-    for name, expert in experts.items():
-        params = expert.get_parameter_count()
-        print(f"✓ {name}: {params:,} parameters")
-    
-    return experts
+    try:
+        # 检查必要的键
+        required_keys = ['labels', 'architecture']
+        for key in required_keys:
+            if key not in config:
+                print(f"Missing required key: {key}")
+                return False
+        
+        # 检查专家配置
+        experts = config['architecture'].get('experts', {})
+        if not experts:
+            print("No experts defined in configuration")
+            return False
+        
+        for expert_name, expert_config in experts.items():
+            expert_type = expert_config.get('type')
+            if expert_type not in SUPPORTED_EXPERT_TYPES:
+                print(f"Unsupported expert type: {expert_type} for expert: {expert_name}")
+                return False
+        
+        # 检查融合策略
+        fusion_strategy = config['architecture'].get('fusion', {}).get('strategy', 'concatenate')
+        if fusion_strategy not in SUPPORTED_FUSION_STRATEGIES:
+            print(f"Unsupported fusion strategy: {fusion_strategy}")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"Config validation error: {e}")
+        return False
 
 
+def create_model_from_config_file(config_path: str):
+    """
+    从配置文件创建模型
+    
+    Args:
+        config_path: 配置文件路径
+        
+    Returns:
+        DynamicHarModel实例
+    """
+    import yaml
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        
+        if not validate_config(config):
+            raise ValueError("Invalid configuration file")
+        
+        return create_dynamic_har_model(config)
+        
+    except Exception as e:
+        raise RuntimeError(f"Failed to create model from config file {config_path}: {e}")
+
+
+# 模块初始化时的信息输出
+def _print_module_info():
+    """打印模块信息（仅在调试时使用）"""
+    info = f"""
+MazeruHAR Model Layer v{__version__}
+=====================================
+支持的专家类型: {', '.join(SUPPORTED_EXPERT_TYPES)}
+支持的融合策略: {', '.join(SUPPORTED_FUSION_STRATEGIES)}
+核心功能: 动态多模态HAR模型构建
+"""
+    return info
+
+
+# 仅供调试使用
 if __name__ == "__main__":
-    # 打印模型层信息
-    print_model_layer_info()
+    print(_print_module_info())
     
-    print("\n" + "="*50)
-    print("运行示例...")
-    print("="*50)
-    
-    # 创建最小示例
-    print("\n1. 最小示例:")
-    minimal_model = create_minimal_example()
-    
-    # 演示专家创建
-    print("\n2. 专家创建示例:")
-    experts = demo_expert_creation()
-    
-    # 创建完整示例
-    print("\n3. 完整示例:")
-    full_model = create_example_model()
-    print(f"✓ 完整模型: {full_model}")
-    
-    print("\n✓ 所有示例运行成功！")
+    # 测试默认配置
+    print("测试默认配置:")
+    default_config = get_example_config()
+    if validate_config(default_config):
+        print("✅ 默认配置有效")
+        model = create_dynamic_har_model(default_config)
+        print(f"✅ 模型创建成功，参数数量: {sum(p.numel() for p in model.parameters()):,}")
+    else:
+        print("❌ 默认配置无效")

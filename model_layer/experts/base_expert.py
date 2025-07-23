@@ -27,7 +27,7 @@ class ExpertModel(nn.Module, ABC):
         """
         super(ExpertModel, self).__init__()
         
-        self.input_shape = input_shape
+        self.input_shape = tuple(input_shape)
         self.output_dim = output_dim
         self.expert_type = self.__class__.__name__
         

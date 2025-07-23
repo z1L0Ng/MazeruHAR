@@ -3,7 +3,7 @@
 
 name: "SHL_MultiModal_Experiment"
 
-# 数据集配置
+# dataset Configuration
 dataset:
   name: "SHL"
   path: "./datasets/SHL"
@@ -11,7 +11,7 @@ dataset:
   val_split: 0.15
   test_split: 0.15
   
-  # SHL数据集活动标签
+  # labels Configuration
   activity_labels:
     - "Standing"
     - "Walking"
@@ -22,12 +22,12 @@ dataset:
     - "Train"
     - "Subway"
   
-  # 模态配置
+  # Modalities Configuration
   modalities:
     - name: "imu"
-      channels: 6  # 3轴加速度计 + 3轴陀螺仪
+      channels: 6  # Accelerometer and Gyroscope
       sequence_length: 200
-      expert_type: "cbranchformer"
+      expert_type: "rnn" #cbranchformer?
       expert_params:
         projection_dim: 192
         num_heads: 4
@@ -44,7 +44,7 @@ dataset:
         overlap: 0.5
         
     - name: "pressure"
-      channels: 1  # 气压传感器
+      channels: 1  # Pressure sensor
       sequence_length: 200
       expert_type: "lstm"
       expert_params:
