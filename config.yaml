@@ -1,0 +1,52 @@
+
+# 实验元数据
+name: "UCI_HART_Baseline_Experiment"
+description: "使用HART模型在UCI-HAR数据集上进行的基线实验"
+seed: 42
+device: "auto"  # 'auto', 'cpu', 'cuda'
+output_dir: "./results/uci_hart_baseline"
+save_checkpoints: true
+verbose: true
+
+# 数据集配置
+dataset:
+  name: "UCI"
+  activity_labels: ['Walk', 'Upstair', 'Downstair', 'Sit', 'Stand', 'Lay']
+  modalities:
+    - name: "accel"
+      channels: 3
+      sequence_length: 128
+    - name: "gyro"
+      channels: 3
+      sequence_length: 128
+
+# 模型架构配置
+architecture:
+  dropout_rate: 0.3
+  # 定义专家模型，可以有多个，但目前只使用第一个
+  experts:
+    expert1:
+      type: "HART"
+      params:
+        projection_dim: 192
+        frame_length: 16
+        time_step: 16
+        filter_attention_head: 4
+        conv_kernels: [3, 7, 15, 31, 31, 31]
+        token_based: false
+
+# 训练过程配置
+training:
+  epochs: 20  # 为了快速演示，减少epoch数量
+  batch_size: 128
+  learning_rate: 0.001
+  optimizer: "adamw"  # 'adam', 'adamw', 'sgd'
+  weight_decay: 0.0001
+  scheduler: "cosine" # 'cosine', 'step', null
+  label_smoothing: 0.1
+  gradient_clip_norm: 1.0
+
+# 可视化配置
+visualization:
+  plot_learning_curves: true
+  plot_confusion_matrix: true
