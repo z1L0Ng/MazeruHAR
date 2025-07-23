@@ -59,3 +59,5 @@ HART_Results/
 config/generated/
 config/experiments/
 *.config.yaml
+
+/results
