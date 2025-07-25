@@ -1,443 +1,383 @@
-# config/config_loader.py
+# config/enhanced_config_loader.py
 """
-配置层实现 - 任务1.1
-MazeruHAR项目的配置驱动框架核心组件
+增强的配置加载器 - 支持数据集路径配置和所有可用专家模型
 """
 
 import yaml
 import os
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass, field
-from pathlib import Path
-import json
 
 
 @dataclass
-class ModalityConfig:
-    """单个模态配置"""
+class EnhancedDatasetConfig:
+    """增强的数据集配置类"""
     name: str
-    channels: int
-    sequence_length: int
-    expert_type: str
-    expert_params: Dict[str, Any] = field(default_factory=dict)
+    path: str  # 数据集目录路径
+    activity_labels: List[str]
+    modalities: List[Dict[str, Any]]
     preprocessing: Dict[str, Any] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        # 验证必要字段
-        if self.channels <= 0:
-            raise ValueError(f"Modality '{self.name}' channels must be > 0")
-        if self.sequence_length <= 0:
-            raise ValueError(f"Modality '{self.name}' sequence_length must be > 0")
+    data_split: Dict[str, float] = field(default_factory=lambda: {
+        'train': 0.7, 'validation': 0.15, 'test': 0.15
+    })
 
 
 @dataclass
 class ExpertConfig:
-    """专家模型配置"""
-    type: str
+    """专家配置类"""
+    type: str  # transformer, rnn, cnn, hybrid
     params: Dict[str, Any] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        # 验证专家类型
-        valid_types = ['transformer', 'cnn', 'lstm', 'gru', 'cbranchformer', 'hart']
-        if self.type not in valid_types:
-            raise ValueError(f"Expert type '{self.type}' not supported. Valid types: {valid_types}")
 
 
 @dataclass
-class FusionConfig:
-    """融合策略配置"""
-    strategy: str
-    params: Dict[str, Any] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        # 验证融合策略
-        valid_strategies = ['concatenate', 'attention', 'weighted_sum', 'average', 'max_pooling']
-        if self.strategy not in valid_strategies:
-            raise ValueError(f"Fusion strategy '{self.strategy}' not supported. Valid strategies: {valid_strategies}")
-
-
-@dataclass
-class DatasetConfig:
-    """数据集配置"""
-    name: str
-    path: str
-    modalities: List[ModalityConfig]
-    activity_labels: List[str]
-    train_split: float = 0.7
-    val_split: float = 0.15
-    test_split: float = 0.15
-    
-    def __post_init__(self):
-        # 验证数据集分割比例
-        total_split = self.train_split + self.val_split + self.test_split
-        if abs(total_split - 1.0) > 1e-6:
-            raise ValueError(f"Dataset splits must sum to 1.0, got {total_split}")
-        
-        # 验证数据集路径（如果路径存在的话）
-        if os.path.exists(self.path):
-            pass  # 路径存在，验证通过
-        else:
-            # 路径不存在，给出警告但不抛出异常（可能是相对路径或稍后创建）
-            print(f"Warning: Dataset path '{self.path}' does not exist")
-
-
-@dataclass
-class ArchitectureConfig:
-    """模型架构配置"""
+class EnhancedArchitectureConfig:
+    """增强的架构配置类"""
     experts: Dict[str, ExpertConfig]
-    fusion: FusionConfig
-    fusion_output_dim: int
-    dropout_rate: float = 0.1
-    
-    def __post_init__(self):
-        if self.fusion_output_dim <= 0:
-            raise ValueError("fusion_output_dim must be > 0")
-        if not (0 <= self.dropout_rate <= 1):
-            raise ValueError("dropout_rate must be in [0, 1]")
+    fusion: Dict[str, Any] = field(default_factory=dict)
+    fusion_output_dim: int = 192
+    dropout_rate: float = 0.3
 
 
 @dataclass
-class TrainingConfig:
-    """训练配置"""
-    batch_size: int = 32
-    learning_rate: float = 1e-3
+class EnhancedTrainingConfig:
+    """增强的训练配置类"""
     epochs: int = 100
-    optimizer: str = 'adam'
-    scheduler: str = 'cosine'
-    weight_decay: float = 1e-4
-    label_smoothing: float = 0.1
-    gradient_clip_norm: float = 1.0
-    early_stopping_patience: int = 10
-    
-    def __post_init__(self):
-        if self.batch_size <= 0:
-            raise ValueError("batch_size must be > 0")
-        if self.learning_rate <= 0:
-            raise ValueError("learning_rate must be > 0")
-        if self.epochs <= 0:
-            raise ValueError("epochs must be > 0")
+    batch_size: int = 64
+    learning_rate: float = 0.001
+    optimizer: str = "adamw"
+    scheduler: str = "cosine"
+    weight_decay: float = 0.0001
+    early_stopping: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
-class ExperimentConfig:
-    """完整实验配置"""
+class EnhancedExperimentConfig:
+    """增强的实验配置类"""
     name: str
-    dataset: DatasetConfig
-    architecture: ArchitectureConfig
-    training: TrainingConfig
-    device: str = 'auto'
+    description: str = ""
     seed: int = 42
-    output_dir: str = './results'
+    device: str = "auto"
+    output_dir: str = "./results"
     save_checkpoints: bool = True
     verbose: bool = True
     
-    def __post_init__(self):
-        # 创建输出目录
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
-        
-        # 验证模态与专家的映射
-        dataset_modalities = {mod.name for mod in self.dataset.modalities}
-        expert_modalities = set(self.architecture.experts.keys())
-        
-        if dataset_modalities != expert_modalities:
-            raise ValueError(f"Modality-Expert mapping mismatch. "
-                           f"Dataset modalities: {dataset_modalities}, "
-                           f"Expert modalities: {expert_modalities}")
+    dataset: EnhancedDatasetConfig = None
+    architecture: EnhancedArchitectureConfig = None
+    training: EnhancedTrainingConfig = None
+    visualization: Dict[str, Any] = field(default_factory=dict)
 
 
-class ConfigLoader:
-    """配置加载器"""
+class EnhancedConfigLoader:
+    """增强的配置加载器"""
+    
+    # 支持的专家类型映射
+    SUPPORTED_EXPERTS = {
+        'transformer': {
+            'presets': ['transformer_small', 'transformer_medium', 'transformer_large'],
+            'description': 'Transformer-based expert for attention mechanisms'
+        },
+        'rnn': {
+            'presets': ['rnn_lstm', 'rnn_gru', 'rnn_channel_specific', 'rnn_deep'],
+            'description': 'RNN-based expert (LSTM/GRU)'
+        },
+        'cnn': {
+            'presets': ['cnn_simple', 'cnn_multiscale', 'cnn_deep', 'cnn_lightweight'],
+            'description': 'CNN-based expert for spatial-temporal patterns'
+        },
+        'hybrid': {
+            'presets': ['hybrid_small', 'hybrid_medium', 'hybrid_large', 'hybrid_attention_fusion'],
+            'description': 'Hybrid expert combining multiple architectures'
+        }
+    }
     
     @staticmethod
-    def load_from_yaml(yaml_path: str) -> ExperimentConfig:
+    def load_from_yaml(yaml_path: str) -> EnhancedExperimentConfig:
         """从YAML文件加载配置"""
+        if not os.path.exists(yaml_path):
+            raise FileNotFoundError(f"配置文件不存在: {yaml_path}")
+        
         with open(yaml_path, 'r', encoding='utf-8') as f:
             config_dict = yaml.safe_load(f)
         
-        return ConfigLoader._dict_to_config(config_dict)
+        return EnhancedConfigLoader._dict_to_config(config_dict)
     
     @staticmethod
-    def load_from_dict(config_dict: Dict[str, Any]) -> ExperimentConfig:
-        """从字典加载配置"""
-        return ConfigLoader._dict_to_config(config_dict)
-    
-    @staticmethod
-    def _dict_to_config(config_dict: Dict[str, Any]) -> ExperimentConfig:
-        """将配置字典转换为ExperimentConfig对象"""
+    def _dict_to_config(config_dict: Dict[str, Any]) -> EnhancedExperimentConfig:
+        """将配置字典转换为配置对象"""
         
-        # 解析模态配置
-        modalities = []
-        for mod_config in config_dict['dataset']['modalities']:
-            modalities.append(ModalityConfig(**mod_config))
+        # 验证数据集路径
+        dataset_path = config_dict['dataset']['path']
+        if not os.path.exists(dataset_path):
+            print(f"警告: 数据集路径不存在: {dataset_path}")
         
         # 解析数据集配置
-        dataset_config = DatasetConfig(
+        dataset_config = EnhancedDatasetConfig(
             name=config_dict['dataset']['name'],
-            path=config_dict['dataset']['path'],
-            modalities=modalities,
+            path=dataset_path,
             activity_labels=config_dict['dataset']['activity_labels'],
-            train_split=config_dict['dataset'].get('train_split', 0.7),
-            val_split=config_dict['dataset'].get('val_split', 0.15),
-            test_split=config_dict['dataset'].get('test_split', 0.15)
+            modalities=config_dict['dataset']['modalities'],
+            preprocessing=config_dict['dataset'].get('preprocessing', {}),
+            data_split=config_dict['dataset'].get('data_split', {
+                'train': 0.7, 'validation': 0.15, 'test': 0.15
+            })
         )
         
         # 解析专家配置
         experts = {}
         for expert_name, expert_config in config_dict['architecture']['experts'].items():
-            experts[expert_name] = ExpertConfig(**expert_config)
-        
-        # 解析融合配置
-        fusion_config = FusionConfig(**config_dict['architecture']['fusion'])
+            experts[expert_name] = ExpertConfig(
+                type=expert_config['type'],
+                params=expert_config.get('params', {})
+            )
         
         # 解析架构配置
-        architecture_config = ArchitectureConfig(
+        architecture_config = EnhancedArchitectureConfig(
             experts=experts,
-            fusion=fusion_config,
-            fusion_output_dim=config_dict['architecture']['fusion_output_dim'],
-            dropout_rate=config_dict['architecture'].get('dropout_rate', 0.1)
+            fusion=config_dict['architecture'].get('fusion', {}),
+            fusion_output_dim=config_dict['architecture'].get('fusion_output_dim', 192),
+            dropout_rate=config_dict['architecture'].get('dropout_rate', 0.3)
         )
         
         # 解析训练配置
-        training_config = TrainingConfig(**config_dict.get('training', {}))
+        training_config = EnhancedTrainingConfig(
+            epochs=config_dict['training'].get('epochs', 100),
+            batch_size=config_dict['training'].get('batch_size', 64),
+            learning_rate=config_dict['training'].get('learning_rate', 0.001),
+            optimizer=config_dict['training'].get('optimizer', 'adamw'),
+            scheduler=config_dict['training'].get('scheduler', 'cosine'),
+            weight_decay=config_dict['training'].get('weight_decay', 0.0001),
+            early_stopping=config_dict['training'].get('early_stopping', {})
+        )
         
-        # 构建完整配置
-        experiment_config = ExperimentConfig(
+        # 创建完整的实验配置
+        experiment_config = EnhancedExperimentConfig(
             name=config_dict['name'],
+            description=config_dict.get('description', ''),
+            seed=config_dict.get('seed', 42),
+            device=config_dict.get('device', 'auto'),
+            output_dir=config_dict.get('output_dir', './results'),
+            save_checkpoints=config_dict.get('save_checkpoints', True),
+            verbose=config_dict.get('verbose', True),
             dataset=dataset_config,
             architecture=architecture_config,
             training=training_config,
-            device=config_dict.get('device', 'auto'),
-            seed=config_dict.get('seed', 42),
-            output_dir=config_dict.get('output_dir', './results'),
-            save_checkpoints=config_dict.get('save_checkpoints', True),
-            verbose=config_dict.get('verbose', True)
+            visualization=config_dict.get('visualization', {})
         )
         
         return experiment_config
     
     @staticmethod
-    def save_to_yaml(config: ExperimentConfig, yaml_path: str):
-        """保存配置到YAML文件"""
-        config_dict = ConfigLoader._config_to_dict(config)
+    def validate_config(config: EnhancedExperimentConfig) -> List[str]:
+        """验证配置"""
+        errors = []
         
-        with open(yaml_path, 'w', encoding='utf-8') as f:
-            yaml.dump(config_dict, f, default_flow_style=False, allow_unicode=True)
+        # 验证数据集路径
+        if not os.path.exists(config.dataset.path):
+            errors.append(f"数据集路径不存在: {config.dataset.path}")
+        
+        # 验证专家配置
+        for expert_name, expert in config.architecture.experts.items():
+            if expert.type not in EnhancedConfigLoader.SUPPORTED_EXPERTS:
+                errors.append(f"不支持的专家类型: {expert.type}")
+        
+        # 验证模态配置
+        if not config.dataset.modalities:
+            errors.append("至少需要一个模态配置")
+        
+        return errors
     
     @staticmethod
-    def _config_to_dict(config: ExperimentConfig) -> Dict[str, Any]:
-        """将配置对象转换为字典"""
+    def list_supported_experts():
+        """列出所有支持的专家类型"""
+        print("支持的专家类型:")
+        for expert_type, info in EnhancedConfigLoader.SUPPORTED_EXPERTS.items():
+            print(f"  {expert_type}: {info['description']}")
+            print(f"    预设: {', '.join(info['presets'])}")
+    
+    @staticmethod
+    def create_shl_config(dataset_path: str = "./datasets/datasetStandardized/SHL_Multimodal") -> EnhancedExperimentConfig:
+        """创建SHL数据集的配置"""
         
-        # 转换模态配置
-        modalities_dict = []
-        for mod in config.dataset.modalities:
-            modalities_dict.append({
-                'name': mod.name,
-                'channels': mod.channels,
-                'sequence_length': mod.sequence_length,
-                'expert_type': mod.expert_type,
-                'expert_params': mod.expert_params,
-                'preprocessing': mod.preprocessing
-            })
-        
-        # 转换专家配置
-        experts_dict = {}
-        for expert_name, expert in config.architecture.experts.items():
-            experts_dict[expert_name] = {
-                'type': expert.type,
-                'params': expert.params
+        # 创建数据集配置
+        dataset_config = EnhancedDatasetConfig(
+            name="SHL",
+            path=dataset_path,
+            activity_labels=["Standing", "Walking", "Running", "Biking", "Car", "Bus", "Train", "Subway"],
+            modalities=[
+                {
+                    "name": "imu",
+                    "channels": 6,
+                    "sequence_length": 128,
+                    "expert_type": "transformer",
+                    "expert_params": {
+                        "projection_dim": 128,
+                        "num_heads": 8,
+                        "num_layers": 4
+                    }
+                },
+                {
+                    "name": "pressure",
+                    "channels": 1,
+                    "sequence_length": 128,
+                    "expert_type": "rnn",
+                    "expert_params": {
+                        "hidden_dim": 64,
+                        "num_layers": 2,
+                        "rnn_type": "gru"
+                    }
+                }
+            ],
+            preprocessing={
+                "window_size": 128,
+                "step_size": 64,
+                "normalize": True
             }
+        )
         
-        return {
+        # 创建专家配置
+        experts = {
+            "imu_expert": ExpertConfig(
+                type="transformer",
+                params={
+                    "projection_dim": 128,
+                    "num_heads": 8,
+                    "num_layers": 4,
+                    "dropout": 0.1,
+                    "output_dim": 128
+                }
+            ),
+            "pressure_expert": ExpertConfig(
+                type="rnn",
+                params={
+                    "hidden_dim": 64,
+                    "num_layers": 2,
+                    "rnn_type": "gru",
+                    "bidirectional": True,
+                    "output_dim": 64
+                }
+            )
+        }
+        
+        # 创建架构配置
+        architecture_config = EnhancedArchitectureConfig(
+            experts=experts,
+            fusion={
+                "strategy": "concatenate",
+                "params": {"fusion_dim": 192}
+            },
+            fusion_output_dim=192,
+            dropout_rate=0.3
+        )
+        
+        # 创建训练配置
+        training_config = EnhancedTrainingConfig(
+            epochs=100,
+            batch_size=64,
+            learning_rate=0.001,
+            optimizer="adamw",
+            scheduler="cosine",
+            weight_decay=0.0001,
+            early_stopping={
+                "enabled": True,
+                "patience": 15,
+                "monitor": "val_f1"
+            }
+        )
+        
+        # 创建完整配置
+        config = EnhancedExperimentConfig(
+            name="SHL_MultiModal_Experiment",
+            description="SHL数据集多模态融合实验",
+            seed=42,
+            device="auto",
+            output_dir="./results/shl_multimodal",
+            dataset=dataset_config,
+            architecture=architecture_config,
+            training=training_config,
+            visualization={
+                "enabled": True,
+                "plots": {
+                    "learning_curves": True,
+                    "confusion_matrix": True,
+                    "attention_maps": True
+                }
+            }
+        )
+        
+        return config
+    
+    @staticmethod
+    def save_to_yaml(config: EnhancedExperimentConfig, output_path: str):
+        """保存配置到YAML文件"""
+        # 转换为字典
+        config_dict = {
             'name': config.name,
+            'description': config.description,
+            'seed': config.seed,
+            'device': config.device,
+            'output_dir': config.output_dir,
+            'save_checkpoints': config.save_checkpoints,
+            'verbose': config.verbose,
             'dataset': {
                 'name': config.dataset.name,
                 'path': config.dataset.path,
-                'modalities': modalities_dict,
                 'activity_labels': config.dataset.activity_labels,
-                'train_split': config.dataset.train_split,
-                'val_split': config.dataset.val_split,
-                'test_split': config.dataset.test_split
+                'modalities': config.dataset.modalities,
+                'preprocessing': config.dataset.preprocessing,
+                'data_split': config.dataset.data_split
             },
             'architecture': {
-                'experts': experts_dict,
-                'fusion': {
-                    'strategy': config.architecture.fusion.strategy,
-                    'params': config.architecture.fusion.params
+                'experts': {
+                    name: {
+                        'type': expert.type,
+                        'params': expert.params
+                    } for name, expert in config.architecture.experts.items()
                 },
+                'fusion': config.architecture.fusion,
                 'fusion_output_dim': config.architecture.fusion_output_dim,
                 'dropout_rate': config.architecture.dropout_rate
             },
             'training': {
+                'epochs': config.training.epochs,
                 'batch_size': config.training.batch_size,
                 'learning_rate': config.training.learning_rate,
-                'epochs': config.training.epochs,
                 'optimizer': config.training.optimizer,
                 'scheduler': config.training.scheduler,
                 'weight_decay': config.training.weight_decay,
-                'label_smoothing': config.training.label_smoothing,
-                'gradient_clip_norm': config.training.gradient_clip_norm,
-                'early_stopping_patience': config.training.early_stopping_patience
+                'early_stopping': config.training.early_stopping
             },
-            'device': config.device,
-            'seed': config.seed,
-            'output_dir': config.output_dir,
-            'save_checkpoints': config.save_checkpoints,
-            'verbose': config.verbose
+            'visualization': config.visualization
         }
-
-
-class ConfigValidator:
-    """配置验证器"""
-    
-    @staticmethod
-    def validate_config(config: ExperimentConfig) -> List[str]:
-        """验证配置的完整性和一致性"""
-        errors = []
         
-        # 验证模态与专家匹配
-        for modality in config.dataset.modalities:
-            if modality.name not in config.architecture.experts:
-                errors.append(f"No expert defined for modality '{modality.name}'")
+        # 创建输出目录
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        # 验证融合输出维度
-        if config.architecture.fusion.strategy == 'concatenate':
-            total_expert_output_dim = 0
-            for expert_name, expert in config.architecture.experts.items():
-                # 获取专家输出维度
-                expert_output_dim = expert.params.get('output_dim', 128)
-                total_expert_output_dim += expert_output_dim
-            
-            if config.architecture.fusion_output_dim != total_expert_output_dim:
-                errors.append(f"Fusion output dim mismatch for concatenate strategy. "
-                            f"Expected {total_expert_output_dim}, got {config.architecture.fusion_output_dim}")
+        # 保存YAML文件
+        with open(output_path, 'w', encoding='utf-8') as f:
+            yaml.dump(config_dict, f, default_flow_style=False, allow_unicode=True, indent=2)
         
-        # 验证设备配置
-        if config.device not in ['auto', 'cpu', 'cuda', 'mps']:
-            errors.append(f"Invalid device '{config.device}'. Valid options: auto, cpu, cuda, mps")
-        
-        return errors
+        print(f"✓ 配置已保存到: {output_path}")
 
 
-def create_sample_config() -> ExperimentConfig:
-    """创建示例配置"""
+# 使用示例
+if __name__ == "__main__":
+    # 列出支持的专家类型
+    EnhancedConfigLoader.list_supported_experts()
     
-    # 创建模态配置
-    modalities = [
-        ModalityConfig(
-            name='imu',
-            channels=6,
-            sequence_length=200,
-            expert_type='cbranchformer',
-            expert_params={'projection_dim': 128, 'num_heads': 4},
-            preprocessing={'normalize': True, 'filter_freq': 20}
-        ),
-        ModalityConfig(
-            name='pressure',
-            channels=1,
-            sequence_length=200,
-            expert_type='lstm',
-            expert_params={'hidden_dim': 64, 'num_layers': 2},
-            preprocessing={'normalize': True}
-        )
-    ]
-    
-    # 创建数据集配置
-    dataset_config = DatasetConfig(
-        name='SHL',
-        path='./datasets/datasetStandardized/SHL_Multimodal',
-        modalities=modalities,
-        activity_labels=['Standing', 'Walking', 'Running', 'Biking', 'Car', 'Bus', 'Train', 'Subway']
+    # 创建SHL配置
+    shl_config = EnhancedConfigLoader.create_shl_config(
+        dataset_path="./datasets/datasetStandardized/SHL_Multimodal"
     )
-    
-    # 创建专家配置
-    experts = {
-        'imu': ExpertConfig(
-            type='cbranchformer',
-            params={
-                'projection_dim': 128,
-                'num_heads': 4,
-                'num_layers': 3,
-                'output_dim': 128
-            }
-        ),
-        'pressure': ExpertConfig(
-            type='lstm',
-            params={
-                'hidden_dim': 64,
-                'num_layers': 2,
-                'output_dim': 64
-            }
-        )
-    }
-    
-    # 创建融合配置
-    fusion_config = FusionConfig(
-        strategy='concatenate',
-        params={}
-    )
-    
-    # 创建架构配置
-    architecture_config = ArchitectureConfig(
-        experts=experts,
-        fusion=fusion_config,
-        fusion_output_dim=192,  # 128 + 64
-        dropout_rate=0.1
-    )
-    
-    # 创建训练配置
-    training_config = TrainingConfig(
-        batch_size=32,
-        learning_rate=1e-3,
-        epochs=100,
-        optimizer='adam',
-        scheduler='cosine'
-    )
-    
-    # 创建完整配置
-    experiment_config = ExperimentConfig(
-        name='SHL_MultiModal_Experiment',
-        dataset=dataset_config,
-        architecture=architecture_config,
-        training=training_config,
-        device='auto',
-        seed=42,
-        output_dir='./results/shl_multimodal'
-    )
-    
-    return experiment_config
-
-
-if __name__ == '__main__':
-    # 示例使用
-    
-    # 创建示例配置
-    config = create_sample_config()
     
     # 验证配置
-    validator = ConfigValidator()
-    errors = validator.validate_config(config)
-    
+    errors = EnhancedConfigLoader.validate_config(shl_config)
     if errors:
-        print("配置验证失败:")
+        print("配置验证错误:")
         for error in errors:
             print(f"  - {error}")
     else:
-        print("配置验证通过!")
+        print("✓ 配置验证通过")
     
-    # 保存配置到YAML文件
-    ConfigLoader.save_to_yaml(config, 'sample_config.yaml')
-    print("示例配置已保存到 sample_config.yaml")
-    
-    # 从YAML文件加载配置
-    loaded_config = ConfigLoader.load_from_yaml('sample_config.yaml')
-    print(f"从YAML加载的配置: {loaded_config.name}")
-    
-    # 打印配置摘要
-    print("\n配置摘要:")
-    print(f"  实验名称: {loaded_config.name}")
-    print(f"  数据集: {loaded_config.dataset.name}")
-    print(f"  模态数量: {len(loaded_config.dataset.modalities)}")
-    print(f"  专家数量: {len(loaded_config.architecture.experts)}")
-    print(f"  融合策略: {loaded_config.architecture.fusion.strategy}")
-    print(f"  训练轮数: {loaded_config.training.epochs}")
-    print(f"  批大小: {loaded_config.training.batch_size}")
+    # 保存配置
+    EnhancedConfigLoader.save_to_yaml(shl_config, "config/shl_multimodal_config.yaml")
