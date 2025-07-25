@@ -1,118 +1,75 @@
-# config/default_configs/shl_config.yaml
-# SHL数据集多模态实验配置
+# 实验元数据
+name: SHL_MultiModal_YAML_Experiment
+seed: 42
+device: auto
+output_dir: './results/shl_multimodal_run'
+save_checkpoints: true
 
-name: "SHL_MultiModal_Experiment"
-
-# dataset Configuration
+# 数据集配置
 dataset:
-  name: "SHL"
-  path: "./datasets/SHL"
-  train_split: 0.7
-  val_split: 0.15
-  test_split: 0.15
-  
-  # labels Configuration
+  name: shl  # <-- 对应 datasets/shl.py, 用于动态加载
+  path: /Users/zilongzeng/Research/MazeruHAR/datasets/datasetStandardized/SHL_Multimodal/
   activity_labels:
-    - "Standing"
-    - "Walking"
-    - "Running"
-    - "Biking"
-    - "Car"
-    - "Bus"
-    - "Train"
-    - "Subway"
-  
-  # Modalities Configuration
-  modalities:
-    - name: "imu"
-      channels: 6  # Accelerometer and Gyroscope
-      sequence_length: 200
-      expert_type: "rnn" #cbranchformer?
-      expert_params:
-        projection_dim: 192
-        num_heads: 4
-        num_layers: 3
-        patch_size: 16
-        time_step: 16
-        conv_kernel_size: 15
-        dropout_rate: 0.1
-        use_tokens: true
-      preprocessing:
-        normalize: true
-        filter_freq: 20
-        window_size: 200
-        overlap: 0.5
-        
-    - name: "pressure"
-      channels: 1  # Pressure sensor
-      sequence_length: 200
-      expert_type: "lstm"
-      expert_params:
-        hidden_dim: 64
-        num_layers: 2
-        dropout_rate: 0.1
-        bidirectional: true
-      preprocessing:
-        normalize: true
-        window_size: 200
-        overlap: 0.5
+    - Still
+    - Walking
+    - Run
+    - Bike
+    - Car
+    - Bus
+    - Train
+    - Subway
+  split:
+    train: 0.7
+    val: 0.15
+    test: 0.15
 
-# 模型架构配置
+# 模型架构配置: 使用多专家模型
 architecture:
-  # 专家模型配置
+  type: multi_expert # <-- 对应 models/multi_expert.py
+  num_classes: 8 # 数据集中的类别总数
+
+  # 定义每个模态/传感器的专家模型
   experts:
-    imu:
-      type: "cbranchformer"
+    # 专家1：处理IMU数据 (假设前9个通道是IMU)
+    imu_expert:
+      type: cbranchformer # <-- 对应 models/cbranchformer.py
+      input_slice: [0, 9] # 使用特征的第0到第8列 (共9个通道)
       params:
-        projection_dim: 192
+        projection_dim: 128
         num_heads: 4
-        num_layers: 3
+        num_layers: 2
         patch_size: 16
         time_step: 16
         conv_kernel_size: 15
-        conv_expansion_factor: 2
-        ffn_expansion_factor: 4
         dropout_rate: 0.1
-        use_tokens: true
-        filter_attention_head: 1
-        conv_kernels: [1, 3, 5, 7, 9, 11, 13, 15]
-        output_dim: 192
-    
-    pressure:
-      type: "lstm"
+
+    # 专家2：处理磁力计数据 (假设后3个通道是磁力计)
+    magnetometer_expert:
+      type: lstm # <-- 对应 models/lstm.py
+      input_slice: [9, 12] # 使用特征的第9到第11列 (共3个通道)
       params:
         hidden_dim: 64
         num_layers: 2
-        dropout_rate: 0.1
+        dropout_rate: 0.2
         bidirectional: true
-        output_dim: 64
-  
-  # 融合策略配置
-  fusion:
-    strategy: "concatenate"
-    params: {}
-  
-  # 融合后的输出维度 (192 + 64 = 256)
-  fusion_output_dim: 256
-  
-  # 全局dropout率
-  dropout_rate: 0.1
 
-# 训练配置
+  # 定义特征融合策略
+  fusion:
+    type: concatenate # 融合方式 (当前支持 'concatenate')
+    dropout_rate: 0.3
+
+# 训练超参数配置
 training:
-  batch_size: 32
-  learning_rate: 0.001
   epochs: 100
-  optimizer: "adam"
-  scheduler: "cosine"
-  weight_decay: 0.0001
-  label_smoothing: 0.1
+  batch_size: 32
+  optimizer:
+    type: Adam
+    params:
+      lr: 0.001
+      weight_decay: 0.0001
+  scheduler:
+    type: CosineAnnealingLR
+    params:
+      T_max: 100
   gradient_clip_norm: 1.0
   early_stopping_patience: 10
-
-# 实验配置
-device: "auto"  # auto, cpu, cuda, mps
-seed: 42
-output_dir: "./results/shl_multimodal"
-save_checkpoints: true
-verbose: true
