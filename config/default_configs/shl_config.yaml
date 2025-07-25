@@ -20,7 +20,7 @@ environment:
 # 数据集配置
 dataset:
   name: "SHL"
-  path: "/Users/zilongzeng/Research/MazeruHAR/datasets/dataset/extracted/"
+  path: "datasets/dataset/extracted/"
   preprocessing:
     window_size: 128
     step_size: 64
