@@ -1,75 +1,245 @@
-# 实验元数据
-name: SHL_MultiModal_YAML_Experiment
-seed: 42
-device: auto
-output_dir: './results/shl_multimodal_run'
-save_checkpoints: true
+# ===================================================================
+# SHL数据集多模态配置文件 - 任务3.1
+# 包含IMU和气压传感器模态的完整配置
+# ===================================================================
+
+# 实验基本信息
+name: "SHL_MultiModal_Experiment"
+description: "SHL数据集多模态融合实验 - IMU + 气压传感器"
+version: "1.0"
+author: "MazeruHAR Team"
+created_date: "2024-12-01"
+
+# 环境配置
+environment:
+  seed: 42
+  device: "auto"  # auto, cuda, cpu
+  num_workers: 4
+  pin_memory: true
 
 # 数据集配置
 dataset:
-  name: shl  # <-- 对应 datasets/shl.py, 用于动态加载
-  path: /Users/zilongzeng/Research/MazeruHAR/datasets/datasetStandardized/SHL_Multimodal/
+  name: "SHL"
+  path: "./datasets/datasetStandardized/SHL/"
+  
+  # 数据预处理参数
+  preprocessing:
+    window_size: 128      # 时间窗口大小
+    step_size: 64         # 滑动窗口步长
+    sample_rate: 100      # 采样频率 (Hz)
+    normalize: true       # 是否归一化
+    filter_enabled: true  # 是否启用滤波
+    filter_type: "butterworth"
+    filter_params:
+      order: 3
+      cutoff: 20  # Hz
+  
+  # 活动标签映射
   activity_labels:
-    - Still
-    - Walking
-    - Run
-    - Bike
-    - Car
-    - Bus
-    - Train
-    - Subway
-  split:
+    1: "Standing"
+    2: "Walking" 
+    3: "Running"
+    4: "Biking"
+    5: "Car"
+    6: "Bus"
+    7: "Train"
+    8: "Subway"
+  
+  # 数据分割比例
+  data_split:
     train: 0.7
-    val: 0.15
+    validation: 0.15
     test: 0.15
+    stratify: true
+  
+  # 模态配置
+  modalities:
+    imu:
+      enabled: true
+      description: "IMU传感器数据 (加速度计 + 陀螺仪)"
+      channels: 6
+      channel_names: ["Acc_x", "Acc_y", "Acc_z", "Gyr_x", "Gyr_y", "Gyr_z"]
+      units: ["m/s²", "m/s²", "m/s²", "rad/s", "rad/s", "rad/s"]
+      range: [[-20, 20], [-20, 20], [-20, 20], [-10, 10], [-10, 10], [-10, 10]]
+      
+    pressure:
+      enabled: true
+      description: "气压传感器数据"
+      channels: 1
+      channel_names: ["Pressure"]
+      units: ["hPa"]
+      range: [[900, 1100]]
 
-# 模型架构配置: 使用多专家模型
+# 模型架构配置
 architecture:
-  type: multi_expert # <-- 对应 models/multi_expert.py
-  num_classes: 8 # 数据集中的类别总数
-
-  # 定义每个模态/传感器的专家模型
+  type: "DynamicHarModel"
+  num_classes: 8
+  
+  # 专家模型配置
   experts:
-    # 专家1：处理IMU数据 (假设前9个通道是IMU)
+    # IMU数据专家 - 使用Transformer架构
     imu_expert:
-      type: cbranchformer # <-- 对应 models/cbranchformer.py
-      input_slice: [0, 9] # 使用特征的第0到第8列 (共9个通道)
+      type: "TransformerExpert"
+      modality: "imu"
+      description: "处理IMU传感器数据的Transformer专家"
       params:
-        projection_dim: 128
-        num_heads: 4
-        num_layers: 2
-        patch_size: 16
-        time_step: 16
-        conv_kernel_size: 15
-        dropout_rate: 0.1
-
-    # 专家2：处理磁力计数据 (假设后3个通道是磁力计)
-    magnetometer_expert:
-      type: lstm # <-- 对应 models/lstm.py
-      input_slice: [9, 12] # 使用特征的第9到第11列 (共3个通道)
+        input_dim: 6          # IMU通道数
+        hidden_dim: 256       # 隐藏层维度
+        output_dim: 128       # 专家输出维度
+        num_heads: 8          # 注意力头数
+        num_layers: 4         # Transformer层数
+        dropout: 0.1          # Dropout率
+        activation: "gelu"    # 激活函数
+        pos_encoding: true    # 是否使用位置编码
+        layer_norm: true      # 是否使用层归一化
+        
+    # 气压数据专家 - 使用RNN架构  
+    pressure_expert:
+      type: "RNNExpert"
+      modality: "pressure"
+      description: "处理气压传感器数据的RNN专家"
       params:
-        hidden_dim: 64
-        num_layers: 2
-        dropout_rate: 0.2
-        bidirectional: true
-
-  # 定义特征融合策略
+        input_dim: 1          # 气压通道数
+        hidden_dim: 64        # RNN隐藏维度
+        output_dim: 32        # 专家输出维度
+        num_layers: 2         # RNN层数
+        rnn_type: "LSTM"      # RNN类型: LSTM, GRU
+        dropout: 0.2          # Dropout率
+        bidirectional: true   # 是否双向
+        batch_first: true     # 批次维度在前
+  
+  # 特征融合配置
   fusion:
-    type: concatenate # 融合方式 (当前支持 'concatenate')
-    dropout_rate: 0.3
+    strategy: "concatenate"   # 融合策略: concatenate, attention, weighted_sum
+    description: "拼接融合策略"
+    params:
+      dropout: 0.3          # 融合后的dropout
+      batch_norm: true      # 是否使用批归一化
+      
+  # 分类器配置
+  classifier:
+    type: "MLP"
+    layers: [160, 64, 8]     # [融合特征维度, 隐藏层, 输出类别] 
+    activation: "relu"       # 激活函数
+    dropout: 0.4            # Dropout率
+    batch_norm: true        # 批归一化
 
-# 训练超参数配置
+# 训练配置
 training:
+  # 基本训练参数
   epochs: 100
   batch_size: 32
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  
+  # 优化器配置
   optimizer:
-    type: Adam
+    type: "AdamW"           # Adam, AdamW, SGD
     params:
-      lr: 0.001
-      weight_decay: 0.0001
+      betas: [0.9, 0.999]
+      eps: 1e-8
+      amsgrad: false
+      
+  # 学习率调度器
   scheduler:
-    type: CosineAnnealingLR
+    type: "CosineAnnealingLR"  # CosineAnnealingLR, StepLR, ExponentialLR
     params:
       T_max: 100
-  gradient_clip_norm: 1.0
-  early_stopping_patience: 10
+      eta_min: 1e-6
+      
+  # 损失函数配置
+  loss:
+    type: "CrossEntropyLoss"
+    params:
+      label_smoothing: 0.1
+      class_weights: "balanced"  # 自动计算类权重
+      
+  # 正则化配置
+  regularization:
+    gradient_clip_norm: 1.0
+    early_stopping:
+      enabled: true
+      patience: 15
+      monitor: "val_f1"        # 监控指标
+      mode: "max"              # max or min
+      min_delta: 0.001
+      
+  # 模型保存配置
+  checkpointing:
+    save_best: true
+    save_last: true
+    save_every_n_epochs: 10
+    monitor: "val_f1"
+
+# 验证和测试配置
+evaluation:
+  metrics: ["accuracy", "f1_macro", "f1_weighted", "precision", "recall"]
+  test_during_training: false
+  validation_frequency: 1    # 每n个epoch验证一次
+
+# 输出配置
+output:
+  base_dir: "./results"
+  experiment_dir: "shl_multimodal_experiment"
+  save_predictions: true
+  save_embeddings: true     # 保存特征嵌入用于可视化
+  save_attention_maps: true # 保存注意力图
+  
+  # 日志配置
+  logging:
+    level: "INFO"          # DEBUG, INFO, WARNING, ERROR
+    save_to_file: true
+    console_output: true
+    
+# 可视化配置
+visualization:
+  enabled: true
+  plots:
+    learning_curves: true
+    confusion_matrix: true
+    class_distribution: true
+    feature_distribution: true
+    attention_maps: true     # Transformer注意力可视化
+    tsne_embeddings: true    # t-SNE降维可视化
+    
+  # 可视化参数
+  figure_size: [10, 8]
+  dpi: 300
+  save_format: "png"       # png, pdf, svg
+
+# 高级配置
+advanced:
+  # 混合精度训练
+  mixed_precision:
+    enabled: false         # 需要较新的GPU
+    
+  # 分布式训练
+  distributed:
+    enabled: false
+    backend: "nccl"
+    
+  # 模型编译优化 (PyTorch 2.0+)
+  compile_model: false
+  
+  # 内存优化
+  memory_optimization:
+    gradient_checkpointing: false
+    use_amp: false
+
+# 实验跟踪配置 (可选)
+experiment_tracking:
+  enabled: false
+  platform: "wandb"       # wandb, tensorboard, mlflow
+  project_name: "MazeruHAR-SHL"
+  tags: ["SHL", "multimodal", "IMU", "pressure"]
+  
+# 数据增强配置 (可选)
+data_augmentation:
+  enabled: false
+  techniques:
+    - name: "gaussian_noise"
+      params: {std: 0.01}
+    - name: "time_shift"
+      params: {max_shift: 5}
+    - name: "scaling"
+      params: {factor_range: [0.9, 1.1]}
