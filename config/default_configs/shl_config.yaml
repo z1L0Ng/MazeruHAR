@@ -1,12 +1,12 @@
 # ===================================================================
-# SHL数据集多模态配置文件 - 任务3.1
-# 包含IMU和气压传感器模态的完整配置
+# 修复后的SHL数据集多模态配置文件
+# 解决训练效果差的关键配置问题
 # ===================================================================
 
 # 实验基本信息
-name: "SHL_MultiModal_Experiment"
-description: "SHL数据集多模态融合实验 - IMU + 气压传感器"
-version: "1.0"
+name: "SHL_MultiModal_Fixed"
+description: "修复后的SHL数据集多模态融合实验 - IMU + 气压传感器"
+version: "1.1"
 author: "MazeruHAR Team"
 created_date: "2024-12-01"
 
@@ -20,20 +20,21 @@ environment:
 # 数据集配置
 dataset:
   name: "SHL"
-  path: "datasets/dataset/extracted/"
+  path: "datasets/datasetStandardized/SHL_Multimodal/"  # 修正路径
   preprocessing:
-    window_size: 128
-    step_size: 64
+    window_size: 128  # 确保与数据预处理一致
+    step_size: 64     # 确保与数据预处理一致
     sample_rate: 100
+    normalize_per_sample: true  # 启用样本级标准化
   activity_labels:
-    1: "Standing"
-    2: "Walking" 
-    3: "Running"
-    4: "Biking"
-    5: "Car"
-    6: "Bus"
-    7: "Train"
-    8: "Subway"
+    0: "Standing"   # 修改为0-based索引
+    1: "Walking" 
+    2: "Running"
+    3: "Biking"
+    4: "Car"
+    5: "Bus"
+    6: "Train"
+    7: "Subway"
   data_split:
     train: 0.7
     validation: 0.15
@@ -52,76 +53,71 @@ architecture:
   type: "DynamicHarModel"
   num_classes: 8
   
-  # 专家模型配置
+  # 专家模型配置 - 修复类型名称和参数
   experts:
     imu_expert:
-      # 已修正: "TransformerExpert" -> "transformer"
-      type: "transformer"
+      type: "transformer"  # 修正：确保小写且正确
       modality: "imu"
       params:
-        input_shape: [128, 6]
+        input_shape: [128, 6]  # [seq_len, features]
         output_dim: 128
-        input_dim: 6
-        hidden_dim: 256
-        num_heads: 8
-        num_layers: 4
+        d_model: 256          # Transformer维度
+        nhead: 8              # 注意力头数
+        num_layers: 4         # Transformer层数
+        dim_feedforward: 512  # 前馈网络维度
         dropout: 0.1
         
     pressure_expert:
-      # 已修正: "RNNExpert" -> "rnn"
-      type: "rnn"
+      type: "rnn"  # 修正：确保小写且正确
       modality: "pressure"
       params:
-        input_shape: [128, 1]
-        output_dim: 32
-        input_dim: 1
-        hidden_dim: 64
-        num_layers: 2
-        rnn_type: "LSTM"
-        dropout: 0.2
+        input_shape: [128, 1]  # [seq_len, features]
+        output_dim: 64
+        hidden_dim: 128        # 隐藏层维度
+        num_layers: 2          # RNN层数
+        rnn_type: "LSTM"       # 修正：确保大写
         bidirectional: true
+        dropout: 0.2
   
   # 特征融合配置
   fusion:
-    strategy: "concatenate"
+    strategy: "concatenate"  # 简单拼接融合
     params: {}
       
   # 分类器配置
   classifier:
     type: "MLP"
-    layers: [160, 64, 8]
+    input_dim: 192  # 128 + 64 = 192 (imu_expert + pressure_expert)
+    layers: [192, 128, 64, 8]  # 添加更多层
     activation: "relu"
-    dropout: 0.4
+    dropout: 0.3
 
-# 训练配置
+# 训练配置 - 关键修复
 training:
-  epochs: 100
-  batch_size: 32
-  learning_rate: 0.001
-  weight_decay: 0.0001
-  optimizer: "AdamW"
-  scheduler: "CosineAnnealingLR"
-  loss: "CrossEntropyLoss"
-  early_stopping_patience: 15
-
-# ... (文件的其余部分保持不变) ...
-
-# ... (文件的其余部分保持不变) ...
-  # 学习率调度器
-  scheduler: "cosine"  # cosine, step, plateau, null
-  scheduler_params:
-    T_max: 100
-    eta_min: 1e-6
+  epochs: 200              # 增加训练轮数
+  batch_size: 64           # 增加批大小：32 -> 64
+  learning_rate: 0.0005    # 降低学习率：0.001 -> 0.0005
+  weight_decay: 0.01       # 增加正则化：0.0001 -> 0.01
+  optimizer: "AdamW"       # 使用AdamW优化器
   
-  # 正则化
-  label_smoothing: 0.1
+  # 学习率调度器 - 改为step调度
+  scheduler: "step"
+  scheduler_params:
+    step_size: 50     # 每50个epoch降低学习率
+    gamma: 0.5        # 学习率衰减因子
+  
+  # 损失函数配置
+  loss: "CrossEntropyLoss"
+  label_smoothing: 0.05    # 降低标签平滑：0.1 -> 0.05
+  
+  # 梯度裁剪
   gradient_clip_norm: 1.0
   
-  # 早停策略
+  # 早停策略 - 更宽松的早停
   early_stopping:
     enabled: true
-    patience: 15
-    monitor: "val_f1"
+    patience: 25           # 增加耐心：15 -> 25
+    monitor: "val_f1"      # 监控F1分数
     mode: "max"
     min_delta: 0.001
 
@@ -138,128 +134,103 @@ visualization:
     learning_curves: true
     confusion_matrix: true
     class_distribution: true
-    feature_distribution: true
-    attention_maps: true
-    tsne_embeddings: true
-  figure_size: [10, 8]
+    feature_distribution: false  # 关闭以减少计算开销
+    attention_maps: false        # 关闭以减少计算开销
+    tsne_embeddings: false       # 关闭以减少计算开销
+  figure_size: [12, 8]
   dpi: 300
   save_format: "png"
 
-# 实验跟踪配置
+# 输出配置
+output:
+  base_dir: "./results"
+  experiment_name: "shl_multimodal_fixed"
+  save_checkpoints: true
+  save_best_only: true
+  verbose: true
+
+# 调试配置
+debug:
+  enabled: true
+  print_model_summary: true
+  print_data_shapes: true
+  print_batch_info: true
+  log_level: "INFO"
+
+# ===================================================================
+# 数据加载器配置
+# ===================================================================
+dataloader:
+  train:
+    batch_size: 64
+    shuffle: true
+    num_workers: 4
+    pin_memory: true
+    drop_last: true  # 确保批大小一致
+  
+  validation:
+    batch_size: 64
+    shuffle: false
+    num_workers: 4
+    pin_memory: true
+    drop_last: false
+  
+  test:
+    batch_size: 64
+    shuffle: false
+    num_workers: 4
+    pin_memory: true
+    drop_last: false
+
+# ===================================================================
+# 专家模型的详细预设配置
+# ===================================================================
+expert_presets:
+  transformer_small:
+    d_model: 128
+    nhead: 4
+    num_layers: 2
+    dim_feedforward: 256
+    dropout: 0.1
+  
+  transformer_medium:
+    d_model: 256
+    nhead: 8
+    num_layers: 4
+    dim_feedforward: 512
+    dropout: 0.1
+  
+  transformer_large:
+    d_model: 512
+    nhead: 8
+    num_layers: 6
+    dim_feedforward: 1024
+    dropout: 0.1
+  
+  rnn_small:
+    hidden_dim: 64
+    num_layers: 1
+    dropout: 0.1
+    bidirectional: false
+  
+  rnn_medium:
+    hidden_dim: 128
+    num_layers: 2
+    dropout: 0.2
+    bidirectional: true
+  
+  rnn_large:
+    hidden_dim: 256
+    num_layers: 3
+    dropout: 0.3
+    bidirectional: true
+
+# ===================================================================
+# 实验追踪配置（可选）
+# ===================================================================
 experiment_tracking:
   enabled: false
   platform: "wandb"
-  project_name: "MazeruHAR-SHL"
-  tags: ["SHL", "multimodal", "IMU", "pressure"]
-
-# ===================================================================
-# 以下是所有可用专家模型的完整配置示例
-# 您可以根据需要选择和组合不同的专家
-# ===================================================================
-
-# 可选专家配置示例
-alternative_experts:
-  
-  # 1. CNN专家配置
-  cnn_expert_example:
-    type: "cnn"
-    params:
-      num_layers: 3
-      base_channels: 64
-      kernel_sizes: [3, 5, 7]
-      use_multiscale: true
-      use_residual: true
-      dropout: 0.2
-      output_dim: 128
-  
-  # 2. 混合专家配置 (RNN + Transformer)
-  hybrid_expert_example:
-    type: "hybrid"
-    params:
-      projection_dim: 128
-      rnn_hidden_dim: 64
-      rnn_num_layers: 2
-      num_heads: 4
-      num_transformer_layers: 2
-      fusion_method: "attention"  # concat, add, attention
-      dropout: 0.1
-      output_dim: 128
-  
-  # 3. 深度RNN专家配置
-  deep_rnn_expert_example:
-    type: "rnn"
-    params:
-      hidden_dim: 128
-      num_layers: 4
-      rnn_type: "lstm"  # lstm, gru, rnn
-      bidirectional: true
-      use_channel_specific: true
-      dropout: 0.3
-      output_dim: 128
-  
-  # 4. 轻量级CNN专家配置
-  lightweight_cnn_example:
-    type: "cnn"
-    params:
-      num_layers: 2
-      base_channels: 32
-      kernel_sizes: [3, 5]
-      use_multiscale: false
-      use_residual: false
-      dropout: 0.1
-      output_dim: 64
-
-# ===================================================================
-# 专家预设配置 - 可以直接使用预定义的专家
-# ===================================================================
-
-# 预设专家类型 (可以在experts配置中直接使用)
-expert_presets:
-  # Transformer预设
-  - name: "transformer_small"
-    description: "小型Transformer专家，适用于轻量级任务"
-  - name: "transformer_medium" 
-    description: "中型Transformer专家，平衡性能和资源"
-  - name: "transformer_large"
-    description: "大型Transformer专家，适用于复杂任务"
-  
-  # RNN预设
-  - name: "rnn_lstm"
-    description: "基于LSTM的RNN专家"
-  - name: "rnn_gru"
-    description: "基于GRU的RNN专家"
-  - name: "rnn_channel_specific"
-    description: "通道特定的RNN专家，适用于多传感器数据"
-  - name: "rnn_deep"
-    description: "深度RNN专家，多层结构"
-  
-  # CNN预设
-  - name: "cnn_simple"
-    description: "简单CNN专家，基础特征提取"
-  - name: "cnn_multiscale"
-    description: "多尺度CNN专家，捕获不同时间模式"
-  - name: "cnn_deep"
-    description: "深度CNN专家，带残差连接"
-  - name: "cnn_lightweight"
-    description: "轻量级CNN专家，资源约束环境"
-  
-  # 混合专家预设
-  - name: "hybrid_small"
-    description: "小型混合专家，结合RNN和Transformer"
-  - name: "hybrid_medium"
-    description: "中型混合专家，平衡架构"
-  - name: "hybrid_large"
-    description: "大型混合专家，复杂时序建模"
-  - name: "hybrid_attention_fusion"
-    description: "基于注意力融合的混合专家"
-
-# 使用预设的示例配置
-example_preset_usage:
-  experts:
-    imu_expert:
-      preset: "transformer_medium"  # 使用预设
-      modality: "imu"
-    
-    pressure_expert:
-      preset: "rnn_gru"  # 使用预设
-      modality: "pressure"
+  project_name: "MazeruHAR-SHL-Fixed"
+  tags: ["SHL", "multimodal", "IMU", "pressure", "fixed"]
+  notes: "修复训练效果差的问题后的实验"
