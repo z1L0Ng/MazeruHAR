@@ -1,12 +1,11 @@
 # ===================================================================
-# 修复后的SHL数据集多模态配置文件
-# 解决训练效果差的关键配置问题
+# 修复后的SHL数据集多模态配置文件 - 支持更多传感器
 # ===================================================================
 
 # 实验基本信息
-name: "SHL_MultiModal_Fixed"
-description: "修复后的SHL数据集多模态融合实验 - IMU + 气压传感器"
-version: "1.1"
+name: "SHL_MultiModal_Extended"
+description: "扩展的SHL数据集多模态融合实验 - 支持更多传感器"
+version: "1.2"
 author: "MazeruHAR Team"
 created_date: "2024-12-01"
 
@@ -20,14 +19,14 @@ environment:
 # 数据集配置
 dataset:
   name: "SHL"
-  path: "datasets/datasetStandardized/SHL_Multimodal/"  # 修正路径
+  path: "datasets/datasetStandardized/SHL_Multimodal/"
   preprocessing:
-    window_size: 128  # 确保与数据预处理一致
-    step_size: 64     # 确保与数据预处理一致
+    window_size: 128
+    step_size: 64
     sample_rate: 100
-    normalize_per_sample: true  # 启用样本级标准化
+    normalize_per_sample: true
   activity_labels:
-    0: "Standing"   # 修改为0-based索引
+    0: "Standing"
     1: "Walking" 
     2: "Running"
     3: "Biking"
@@ -47,77 +46,84 @@ dataset:
     pressure:
       enabled: true
       channels: 1
+    magnetometer:
+      enabled: true
+      channels: 3
 
 # 模型架构配置
 architecture:
   type: "DynamicHarModel"
   num_classes: 8
   
-  # 专家模型配置 - 修复类型名称和参数
   experts:
     imu_expert:
-      type: "transformer"  # 修正：确保小写且正确
+      type: "transformer"
       modality: "imu"
       params:
-        input_shape: [128, 6]  # [seq_len, features]
+        input_shape: [128, 6]
         output_dim: 128
-        d_model: 256          # Transformer维度
-        nhead: 8              # 注意力头数
-        num_layers: 4         # Transformer层数
-        dim_feedforward: 512  # 前馈网络维度
+        d_model: 256
+        nhead: 8
+        num_layers: 4
+        dim_feedforward: 512
         dropout: 0.1
         
     pressure_expert:
-      type: "rnn"  # 修正：确保小写且正确
+      type: "rnn"
       modality: "pressure"
       params:
-        input_shape: [128, 1]  # [seq_len, features]
+        input_shape: [128, 1]
         output_dim: 64
-        hidden_dim: 128        # 隐藏层维度
-        num_layers: 2          # RNN层数
-        rnn_type: "LSTM"       # 修正：确保大写
+        hidden_dim: 128
+        num_layers: 2
+        rnn_type: "LSTM"
         bidirectional: true
+        dropout: 0.2
+
+    magnetometer_expert:
+      type: "cnn"
+      modality: "magnetometer"
+      params:
+        input_shape: [128, 3]
+        output_dim: 64
+        filters: [32, 64, 128]
+        kernel_sizes: [3, 3, 3]
         dropout: 0.2
   
   # 特征融合配置
   fusion:
-    strategy: "concatenate"  # 简单拼接融合
+    strategy: "concatenate"
     params: {}
       
   # 分类器配置
   classifier:
     type: "MLP"
-    input_dim: 192  # 128 + 64 = 192 (imu_expert + pressure_expert)
-    layers: [192, 128, 64, 8]  # 添加更多层
+    input_dim: 256  # 128 + 64 + 64 = 256
+    layers: [256, 128, 64, 8]
     activation: "relu"
     dropout: 0.3
 
-# 训练配置 - 关键修复
+# 训练配置
 training:
-  epochs: 200              # 增加训练轮数
-  batch_size: 64           # 增加批大小：32 -> 64
-  learning_rate: 0.0005    # 降低学习率：0.001 -> 0.0005
-  weight_decay: 0.01       # 增加正则化：0.0001 -> 0.01
-  optimizer: "AdamW"       # 使用AdamW优化器
+  epochs: 100
+  batch_size: 64
+  learning_rate: 0.0005
+  weight_decay: 0.01
+  optimizer: "AdamW"
   
-  # 学习率调度器 - 改为step调度
   scheduler: "step"
   scheduler_params:
-    step_size: 50     # 每50个epoch降低学习率
-    gamma: 0.5        # 学习率衰减因子
+    step_size: 50
+    gamma: 0.5
   
-  # 损失函数配置
   loss: "CrossEntropyLoss"
-  label_smoothing: 0.05    # 降低标签平滑：0.1 -> 0.05
-  
-  # 梯度裁剪
+  label_smoothing: 0.05
   gradient_clip_norm: 1.0
   
-  # 早停策略 - 更宽松的早停
   early_stopping:
     enabled: true
-    patience: 25           # 增加耐心：15 -> 25
-    monitor: "val_f1"      # 监控F1分数
+    patience: 25
+    monitor: "val_f1"
     mode: "max"
     min_delta: 0.001
 
@@ -134,9 +140,6 @@ visualization:
     learning_curves: true
     confusion_matrix: true
     class_distribution: true
-    feature_distribution: false  # 关闭以减少计算开销
-    attention_maps: false        # 关闭以减少计算开销
-    tsne_embeddings: false       # 关闭以减少计算开销
   figure_size: [12, 8]
   dpi: 300
   save_format: "png"
@@ -144,7 +147,7 @@ visualization:
 # 输出配置
 output:
   base_dir: "./results"
-  experiment_name: "shl_multimodal_fixed"
+  experiment_name: "shl_multimodal_extended"
   save_checkpoints: true
   save_best_only: true
   verbose: true
@@ -157,16 +160,14 @@ debug:
   print_batch_info: true
   log_level: "INFO"
 
-# ===================================================================
 # 数据加载器配置
-# ===================================================================
 dataloader:
   train:
     batch_size: 64
     shuffle: true
     num_workers: 4
     pin_memory: true
-    drop_last: true  # 确保批大小一致
+    drop_last: true
   
   validation:
     batch_size: 64
@@ -181,56 +182,3 @@ dataloader:
     num_workers: 4
     pin_memory: true
     drop_last: false
-
-# ===================================================================
-# 专家模型的详细预设配置
-# ===================================================================
-expert_presets:
-  transformer_small:
-    d_model: 128
-    nhead: 4
-    num_layers: 2
-    dim_feedforward: 256
-    dropout: 0.1
-  
-  transformer_medium:
-    d_model: 256
-    nhead: 8
-    num_layers: 4
-    dim_feedforward: 512
-    dropout: 0.1
-  
-  transformer_large:
-    d_model: 512
-    nhead: 8
-    num_layers: 6
-    dim_feedforward: 1024
-    dropout: 0.1
-  
-  rnn_small:
-    hidden_dim: 64
-    num_layers: 1
-    dropout: 0.1
-    bidirectional: false
-  
-  rnn_medium:
-    hidden_dim: 128
-    num_layers: 2
-    dropout: 0.2
-    bidirectional: true
-  
-  rnn_large:
-    hidden_dim: 256
-    num_layers: 3
-    dropout: 0.3
-    bidirectional: true
-
-# ===================================================================
-# 实验追踪配置（可选）
-# ===================================================================
-experiment_tracking:
-  enabled: false
-  platform: "wandb"
-  project_name: "MazeruHAR-SHL-Fixed"
-  tags: ["SHL", "multimodal", "IMU", "pressure", "fixed"]
-  notes: "修复训练效果差的问题后的实验"
