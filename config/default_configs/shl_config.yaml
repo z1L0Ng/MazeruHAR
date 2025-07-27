@@ -1,11 +1,11 @@
 # ===================================================================
-# 修复后的SHL数据集多模态配置文件 - 支持更多传感器
+# 修正后的SHL数据集配置文件 - 基于真实传感器数据
 # ===================================================================
 
 # 实验基本信息
-name: "SHL_MultiModal_Extended"
-description: "扩展的SHL数据集多模态融合实验 - 支持更多传感器"
-version: "1.2"
+name: "SHL_MultiModal_Corrected"
+description: "基于SHL数据集真实传感器的多模态融合实验"
+version: "2.0"
 author: "MazeruHAR Team"
 created_date: "2024-12-01"
 
@@ -26,29 +26,51 @@ dataset:
     sample_rate: 100
     normalize_per_sample: true
   activity_labels:
-    0: "Standing"
-    1: "Walking" 
-    2: "Running"
-    3: "Biking"
-    4: "Car"
-    5: "Bus"
-    6: "Train"
-    7: "Subway"
+    0: "Still"      # 原标签1，重编码为0
+    1: "Walking"    # 原标签2，重编码为1
+    2: "Run"        # 原标签3，重编码为2
+    3: "Bike"       # 原标签4，重编码为3
+    4: "Car"        # 原标签5，重编码为4
+    5: "Bus"        # 原标签6，重编码为5
+    6: "Train"      # 原标签7，重编码为6
+    7: "Subway"     # 原标签8，重编码为7
   data_split:
     train: 0.7
     validation: 0.15
     test: 0.15
     stratify: true
+    
+  # 基于SHL数据集真实传感器的模态配置
   modalities:
     imu:
       enabled: true
-      channels: 6
-    pressure:
-      enabled: true
-      channels: 1
+      channels: 6         # 加速度计(3) + 陀螺仪(3)
+      sensors: ["acc", "gyro"]
+      column_indices: [1, 2, 3, 4, 5, 6]
+      
     magnetometer:
       enabled: true
-      channels: 3
+      channels: 3         # 磁力计 X, Y, Z
+      sensors: ["mag"]
+      column_indices: [7, 8, 9]
+      
+    orientation:
+      enabled: true
+      channels: 4         # 四元数 W, X, Y, Z
+      sensors: ["ori"]
+      column_indices: [10, 11, 12, 13]
+      
+    gravity:
+      enabled: true
+      channels: 3         # 重力向量 X, Y, Z
+      sensors: ["gra"]
+      column_indices: [14, 15, 16]
+      
+    linear_acceleration:
+      enabled: true
+      channels: 3         # 线性加速度 X, Y, Z
+      sensors: ["lacc"]
+      column_indices: [17, 18, 19]
 
 # 模型架构配置
 architecture:
@@ -68,18 +90,6 @@ architecture:
         dim_feedforward: 512
         dropout: 0.1
         
-    pressure_expert:
-      type: "rnn"
-      modality: "pressure"
-      params:
-        input_shape: [128, 1]
-        output_dim: 64
-        hidden_dim: 128
-        num_layers: 2
-        rnn_type: "LSTM"
-        bidirectional: true
-        dropout: 0.2
-
     magnetometer_expert:
       type: "cnn"
       modality: "magnetometer"
@@ -87,6 +97,38 @@ architecture:
         input_shape: [128, 3]
         output_dim: 64
         filters: [32, 64, 128]
+        kernel_sizes: [3, 3, 3]
+        dropout: 0.2
+        
+    orientation_expert:
+      type: "rnn"
+      modality: "orientation"
+      params:
+        input_shape: [128, 4]
+        output_dim: 64
+        hidden_dim: 128
+        num_layers: 2
+        rnn_type: "LSTM"
+        bidirectional: true
+        dropout: 0.2
+        
+    gravity_expert:
+      type: "cnn"
+      modality: "gravity"
+      params:
+        input_shape: [128, 3]
+        output_dim: 32
+        filters: [16, 32, 64]
+        kernel_sizes: [3, 3, 3]
+        dropout: 0.2
+        
+    linear_acceleration_expert:
+      type: "cnn"
+      modality: "linear_acceleration"
+      params:
+        input_shape: [128, 3]
+        output_dim: 32
+        filters: [16, 32, 64]
         kernel_sizes: [3, 3, 3]
         dropout: 0.2
   
@@ -98,8 +140,8 @@ architecture:
   # 分类器配置
   classifier:
     type: "MLP"
-    input_dim: 256  # 128 + 64 + 64 = 256
-    layers: [256, 128, 64, 8]
+    input_dim: 320     # 128 + 64 + 64 + 32 + 32 = 320
+    layers: [320, 256, 128, 64, 8]
     activation: "relu"
     dropout: 0.3
 
@@ -117,7 +159,7 @@ training:
     gamma: 0.5
   
   loss: "CrossEntropyLoss"
-  label_smoothing: 0.05
+  label_smoothing: 0.1
   gradient_clip_norm: 1.0
   
   early_stopping:
@@ -140,6 +182,7 @@ visualization:
     learning_curves: true
     confusion_matrix: true
     class_distribution: true
+    sensor_analysis: true
   figure_size: [12, 8]
   dpi: 300
   save_format: "png"
@@ -147,7 +190,7 @@ visualization:
 # 输出配置
 output:
   base_dir: "./results"
-  experiment_name: "shl_multimodal_extended"
+  experiment_name: "shl_multimodal_corrected"
   save_checkpoints: true
   save_best_only: true
   verbose: true
