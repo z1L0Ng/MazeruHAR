@@ -150,210 +150,100 @@ class SHLDataParser(DataParser):
             normalized_reshaped = (reshaped_data - mean) / std
             return normalized_reshaped.reshape(original_shape)
 
-    def split_modalities(self, data: np.ndarray) -> Dict[str, np.ndarray]:
-        """
-        将多模态数据分离 - 修复版本，支持磁力计
-        """
-        modalities = {}
-        total_channels = data.shape[-1]
-        
-        self.logger.info(f"输入数据形状: {data.shape}, 总通道数: {total_channels}")
-        
-        # 检查启用的模态并分离数据
-        for modality_name, modality_config in self.modalities_config.items():
-            if not modality_config.get('enabled', False):
-                self.logger.info(f"跳过未启用的模态: {modality_name}")
-                continue
-                
-            if modality_name == 'imu':
-                # IMU模态：加速度计(3) + 陀螺仪(3) = 6通道
-                if total_channels >= 6:
-                    acc_data = data[:, :, 0:3]    # 加速度计
-                    gyro_data = data[:, :, 3:6]   # 陀螺仪
-                    imu_data = np.concatenate([acc_data, gyro_data], axis=-1)
-                    modalities['imu'] = imu_data
-                    self.logger.info(f"✓ 提取IMU模态: {imu_data.shape}")
-                else:
-                    self.logger.warning("数据通道不足，无法提取IMU模态")
-                    
-            elif modality_name == 'pressure':
-                # 压力模态：使用最后一列作为压力数据
-                if total_channels >= 7:
-                    # 使用倒数第一列作为压力数据
-                    modalities['pressure'] = data[:, :, -1:]
-                    self.logger.info(f"✓ 提取压力模态: {modalities['pressure'].shape}")
-                else:
-                    # 创建虚拟压力数据
-                    self.logger.warning("数据通道不足，创建虚拟压力数据")
-                    modalities['pressure'] = np.zeros((data.shape[0], data.shape[1], 1))
-                    
-            elif modality_name == 'magnetometer':
-                # 磁力计模态：列6-8 (基于SHL数据集标准格式)
-                if total_channels >= 9:
-                    modalities['magnetometer'] = data[:, :, 6:9]
-                    self.logger.info(f"✓ 提取磁力计模态: {modalities['magnetometer'].shape}")
-                else:
-                    self.logger.warning(f"数据通道不足({total_channels})，无法提取磁力计模态(需要9通道)")
-                    
-            elif modality_name == 'orientation':
-                # 方向模态：列9-12 (四元数)
-                if total_channels >= 13:
-                    modalities['orientation'] = data[:, :, 9:13]
-                    self.logger.info(f"✓ 提取方向模态: {modalities['orientation'].shape}")
-                else:
-                    self.logger.warning(f"数据通道不足({total_channels})，无法提取方向模态(需要13通道)")
-                    
-            elif modality_name == 'gravity':
-                # 重力模态：列13-15
-                if total_channels >= 16:
-                    modalities['gravity'] = data[:, :, 13:16]
-                    self.logger.info(f"✓ 提取重力模态: {modalities['gravity'].shape}")
-                else:
-                    self.logger.warning(f"数据通道不足({total_channels})，无法提取重力模态(需要16通道)")
-                    
-            elif modality_name == 'linear_acceleration':
-                # 线性加速度模态：列16-18
-                if total_channels >= 19:
-                    modalities['linear_acceleration'] = data[:, :, 16:19]
-                    self.logger.info(f"✓ 提取线性加速度模态: {modalities['linear_acceleration'].shape}")
-                else:
-                    self.logger.warning(f"数据通道不足({total_channels})，无法提取线性加速度模态(需要19通道)")
-            
+    # 立即替换 data_layer/shl_parser.py 中的 split_modalities 函数
+
+def split_modalities(self, data: np.ndarray) -> Dict[str, np.ndarray]:
+    """
+    将多模态数据分离 - 修复版本，支持磁力计
+    """
+    modalities = {}
+    total_channels = data.shape[-1]
+    self.logger.info(f"🔍 DEBUG: 输入数据形状={data.shape}, 总通道数={total_channels}")
+    self.logger.info(f"🔍 DEBUG: 配置的模态={list(self.modalities_config.keys())}")
+
+    # 打印每个模态的启用状态
+    for modality_name, modality_config in self.modalities_config.items():
+        enabled = modality_config.get('enabled', False)
+        self.logger.info(f"🔍 DEBUG: 模态 {modality_name} - enabled={enabled}")
+
+    # 检查启用的模态并分离数据
+    for modality_name, modality_config in self.modalities_config.items():
+        if not modality_config.get('enabled', False):
+            self.logger.info(f"⏭️  跳过未启用的模态: {modality_name}")
+            continue
+
+        self.logger.info(f"🔄 正在处理启用的模态: {modality_name}")
+
+        if modality_name == 'imu':
+            # IMU模态：加速度计(3) + 陀螺仪(3) = 6通道
+            if total_channels >= 6:
+                acc_data = data[:, :, 0:3]    # 加速度计
+                gyro_data = data[:, :, 3:6]   # 陀螺仪
+                imu_data = np.concatenate([acc_data, gyro_data], axis=-1)
+                modalities['imu'] = imu_data
+                self.logger.info(f"✅ 提取IMU模态: {imu_data.shape}")
             else:
-                self.logger.warning(f"未知的模态类型: {modality_name}")
-        
-        if not modalities:
-            raise ValueError("没有成功提取任何模态数据")
-        
-        # 打印最终提取的模态总结
-        self.logger.info(f"成功提取的模态: {list(modalities.keys())}")
-        for modality_name, modality_data in modalities.items():
-            self.logger.info(f"  {modality_name}: {modality_data.shape}")
-            
-        return modalities
+                self.logger.warning("❌ 数据通道不足，无法提取IMU模态")
 
-    def split_dataset(self, data: np.ndarray, labels: np.ndarray, 
-                     split: str) -> Tuple[np.ndarray, np.ndarray]:
-        """按比例划分数据集"""
-        total_samples = len(labels)
-        
-        # 设置随机种子以确保可重现的划分
-        np.random.seed(42)
-        indices = np.arange(total_samples)
-        np.random.shuffle(indices)
-        
-        # 计算划分点
-        train_end = int(total_samples * self.split_ratios['train'])
-        val_end = train_end + int(total_samples * self.split_ratios['val'])
-        
-        if split == 'train':
-            split_indices = indices[:train_end]
-        elif split == 'val':
-            split_indices = indices[train_end:val_end]
-        elif split == 'test':
-            split_indices = indices[val_end:]
+        elif modality_name == 'pressure':
+            # 压力模态：使用最后一列作为压力数据
+            if total_channels >= 7:
+                # 使用倒数第一列作为压力数据
+                modalities['pressure'] = data[:, :, -1:]
+                self.logger.info(f"✅ 提取压力模态: {modalities['pressure'].shape}")
+            else:
+                # 创建虚拟压力数据
+                self.logger.warning("⚠️  数据通道不足，创建虚拟压力数据")
+                modalities['pressure'] = np.zeros((data.shape[0], data.shape[1], 1))
+
+        elif modality_name == 'magnetometer':
+            # 磁力计模态：列6-8 (基于SHL数据集标准格式)
+            self.logger.info(f"🔍 处理磁力计: total_channels={total_channels}, 需要>=9")
+            if total_channels >= 9:
+                magnetometer_data = data[:, :, 6:9]
+                modalities['magnetometer'] = magnetometer_data
+                self.logger.info(f"✅ 成功提取磁力计模态: {magnetometer_data.shape}")
+                # 额外调试信息
+                self.logger.info(f"🔍 磁力计数据统计: min={magnetometer_data.min():.3f}, max={magnetometer_data.max():.3f}, mean={magnetometer_data.mean():.3f}")
+            else:
+                self.logger.warning(f"❌ 数据通道不足({total_channels})，无法提取磁力计模态(需要9通道)")
+
+        elif modality_name == 'orientation':
+            # 方向模态：列9-12 (四元数)
+            if total_channels >= 13:
+                modalities['orientation'] = data[:, :, 9:13]
+                self.logger.info(f"✅ 提取方向模态: {modalities['orientation'].shape}")
+            else:
+                self.logger.warning(f"❌ 数据通道不足({total_channels})，无法提取方向模态(需要13通道)")
+
+        elif modality_name == 'gravity':
+            # 重力模态：列13-15
+            if total_channels >= 16:
+                modalities['gravity'] = data[:, :, 13:16]
+                self.logger.info(f"✅ 提取重力模态: {modalities['gravity'].shape}")
+            else:
+                self.logger.warning(f"❌ 数据通道不足({total_channels})，无法提取重力模态(需要16通道)")
+
+        elif modality_name == 'linear_acceleration':
+            # 线性加速度模态：列16-18
+            if total_channels >= 19:
+                modalities['linear_acceleration'] = data[:, :, 16:19]
+                self.logger.info(f"✅ 提取线性加速度模态: {modalities['linear_acceleration'].shape}")
+            else:
+                self.logger.warning(f"❌ 数据通道不足({total_channels})，无法提取线性加速度模态(需要19通道)")
+
         else:
-            raise ValueError(f"无效的split参数: {split}")
-        
-        split_data = data[split_indices]
-        split_labels = labels[split_indices]
-        
-        self.logger.info(f"{split} 数据集: {len(split_labels)} 样本")
-        
-        # 打印标签分布
-        unique_labels, counts = np.unique(split_labels, return_counts=True)
-        label_distribution = dict(zip(unique_labels, counts))
-        self.logger.info(f"{split} 标签分布: {label_distribution}")
-        
-        return split_data, split_labels
+            self.logger.warning(f"⚠️  未知的模态类型: {modality_name}")
 
-    def parse_data(self, split: str) -> Tuple[List[Dict[str, np.ndarray]], List[int]]:
-        """
-        解析SHL数据的主要方法 - 支持多种传感器模态
-        
-        Args:
-            split: 数据集分割 ('train', 'val', 'test')
-            
-        Returns:
-            Tuple of (data_list, labels):
-                - data_list: 包含数据字典的列表
-                - labels: 对应的标签列表
-        """
-        self.logger.info(f"开始解析 {split} 数据集...")
-        
-        try:
-            # 1. 加载预处理数据
-            clients_data, clients_labels = self.load_preprocessed_data()
-            
-            # 2. 验证和清理数据
-            all_data, all_labels = self.validate_and_clean_data(clients_data, clients_labels)
-            
-            # 3. 数据标准化
-            self.logger.info("执行数据标准化...")
-            all_data = self.normalize_data(all_data)
-            
-            # 4. 划分数据集
-            split_data, split_labels = self.split_dataset(all_data, all_labels, split)
-            
-            # 5. 分离多模态数据
-            self.logger.info("分离多模态数据...")
-            split_modalities = self.split_modalities(split_data)
-            
-            # 6. 构建数据列表
-            data_list = []
-            labels_list = []
-            
-            num_samples = len(split_labels)
-            for i in range(num_samples):
-                sample_dict = {}
-                for modality_name, modality_data in split_modalities.items():
-                    sample_dict[modality_name] = modality_data[i]
-                
-                data_list.append(sample_dict)
-                labels_list.append(int(split_labels[i]))
-            
-            self.logger.info(f"成功解析 {len(data_list)} 个样本")
-            
-            # 验证数据完整性
-            if len(data_list) != len(labels_list):
-                raise ValueError("数据和标签数量不匹配")
-            
-            if len(data_list) == 0:
-                raise ValueError(f"没有找到有效的 {split} 数据")
-            
-            # 打印第一个样本的信息用于调试
-            first_sample = data_list[0]
-            self.logger.info(f"第一个样本的模态: {list(first_sample.keys())}")
-            for modality, data in first_sample.items():
-                self.logger.info(f"  {modality}: 形状 {data.shape}")
-            
-            return data_list, labels_list
-            
-        except Exception as e:
-            self.logger.error(f"解析 {split} 数据时发生错误: {e}")
-            raise e
+    if not modalities:
+        raise ValueError("❌ 没有成功提取任何模态数据")
 
-    def get_modality_info(self) -> Dict[str, Dict[str, Any]]:
-        """获取模态信息"""
-        modality_info = {}
-        
-        for modality_name, config in self.modalities_config.items():
-            if config.get('enabled', False):
-                modality_info[modality_name] = {
-                    'channels': config.get('channels', 1),
-                    'sequence_length': self.window_size,
-                    'enabled': True
-                }
-        
-        return modality_info
+    # 打印最终提取的模态总结
+    self.logger.info(f"🎯 最终成功提取的模态: {list(modalities.keys())}")
+    for modality_name, modality_data in modalities.items():
+        self.logger.info(f"   📊 {modality_name}: {modality_data.shape}")
 
-    def get_activity_labels(self) -> Dict[int, str]:
-        """获取活动标签映射"""
-        return self.activity_labels
-
-    def get_num_classes(self) -> int:
-        """获取类别数量"""
-        return len(self.activity_labels)
+    return modalities
 
 
 # 快速测试函数
