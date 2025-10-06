@@ -9,9 +9,10 @@ class DataParser(ABC):
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.dataset_name = config.get('name', '')
-        self.data_path = config.get('data_path', './datasets/')
-        self.modalities = config.get('modalities', {})
+        dataset_config = config.get('dataset', {})
+        self.dataset_name = dataset_config.get('name', '')
+        self.data_path = dataset_config.get('path', './datasets/')
+        self.modalities = dataset_config.get('modalities', {})
         
     @abstractmethod
     def parse_data(self, split: str) -> Tuple[List[Dict[str, Any]], List[int]]:
