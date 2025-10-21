@@ -210,30 +210,30 @@ def create_expert_from_config(expert_config: Dict[str, Any]) -> ExpertModel:
     # 动态导入专家类
     if expert_type == 'transformer':
         try:
-            from .transformer_expert import TransformerExpert
+            from .transformer_branch import TransformerExpert
             return TransformerExpert(input_shape, output_dim, **params)
         except ImportError as e:
             raise ImportError(f"Failed to import TransformerExpert: {e}")
     elif expert_type == 'rnn':
         try:
-            from .rnn_expert import RNNExpert
+            from .rnn_branch import RNNExpert
             return RNNExpert(input_shape, output_dim, **params)
         except ImportError as e:
             raise ImportError(f"Failed to import RNNExpert: {e}")
     elif expert_type == 'cnn':
         try:
-            from .cnn_expert import CNNExpert
+            from .cnn_branch import CNNExpert
             return CNNExpert(input_shape, output_dim, **params)
         except ImportError as e:
             raise ImportError(f"Failed to import CNNExpert: {e}")
     elif expert_type == 'hybrid':
         try:
-            from .hybrid_expert import HybridExpert
+            from .hybrid_branch import HybridExpert
             return HybridExpert(input_shape, output_dim, **params)
         except ImportError as e:
             print(f"Warning: HybridExpert not available: {e}")
             # 回退到RNN专家
-            from .rnn_expert import RNNExpert
+            from .rnn_branch import RNNExpert
             return RNNExpert(input_shape, output_dim, **params)
     elif expert_type == 'dummy':
         return DummyExpert(input_shape, output_dim, **params)

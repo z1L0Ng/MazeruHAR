@@ -4,21 +4,21 @@
 提供所有专家模型的导入和工厂函数
 """
 
-from .base_expert import ExpertModel, DummyExpert, create_expert_from_config
-from .transformer_expert import (
+from .base_branch import ExpertModel, DummyExpert, create_expert_from_config
+from .transformer_branch import (
     TransformerExpert,
     create_transformer_expert_small,
     create_transformer_expert_medium,
     create_transformer_expert_large
 )
-from .rnn_expert import (
+from .rnn_branch import (
     RNNExpert,
     create_rnn_expert_lstm,
     create_rnn_expert_gru,
     create_rnn_expert_channel_specific,
     create_rnn_expert_deep
 )
-from .cnn_expert import (
+from .cnn_branch import (
     CNNExpert,
     create_cnn_expert_simple,
     create_cnn_expert_multiscale,
@@ -28,7 +28,7 @@ from .cnn_expert import (
 
 # 尝试导入混合专家，如果失败则跳过
 try:
-    from .hybrid_expert import (
+    from .hybrid_branch import (
         HybridExpert,
         create_hybrid_expert_small,
         create_hybrid_expert_medium,
