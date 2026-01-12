@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from typing import Dict, Any
 
-from .experts import EXPERT_TYPES
+from .branch import EXPERT_TYPES
 from fusion_layer import create_fusion_strategy
 
 class DynamicHarModel(nn.Module):
@@ -21,11 +21,19 @@ class DynamicHarModel(nn.Module):
         self.classifier_config = self.architecture_config.get('classifier', {})
         self.num_classes = self.architecture_config.get('num_classes', 8)
         
+        # 动态创建专家模型
         self.experts = nn.ModuleDict()
         self._create_experts()
         
+        # 传递专家维度信息到融合层配置
+        expert_dims = {name: expert.output_dim for name, expert in self.experts.items()}
+        self.fusion_config['params']['expert_dims'] = expert_dims
+        self.fusion_config['params']['num_experts'] = len(self.experts)
+
+        # 创建融合层
         self.fusion_layer = create_fusion_strategy(self.fusion_config)
         
+        # 创建分类器
         self.classifier = self._create_classifier()
         self.apply(self._init_weights)
         
@@ -81,11 +89,14 @@ class DynamicHarModel(nn.Module):
 
     def _calculate_fusion_output_dim(self) -> int:
         """计算融合后的输出维度"""
-        strategy = self.fusion_config.get('strategy', 'concatenate')
+        strategy = self.fusion_config.get('strategy', 'MoE')
         expert_dims = {name: expert.output_dim for name, expert in self.experts.items()}
         
         if strategy == 'concatenate':
             return sum(expert_dims.values())
+        elif strategy == 'MoE':
+            # MoE融合输出维度为common_dim
+            return self.fusion_config['params'].get('common_dim', 64)
         else:
             return next(iter(expert_dims.values()))
 

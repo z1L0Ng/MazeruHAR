@@ -134,8 +134,10 @@ architecture:
   
   # 特征融合配置
   fusion:
-    strategy: "concatenate"
-    params: {}
+    strategy: "MoE"
+    params: {
+      common_dim: 64
+    }
       
   # 分类器配置
   classifier:

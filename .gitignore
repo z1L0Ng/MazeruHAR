@@ -61,3 +61,6 @@ config/experiments/
 *.config.yaml
 
 /results
+
+# 测试文件
+test.ipynb

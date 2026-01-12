@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Tuple, Optional
-from .base_expert import ExpertModel
+from .base_branch import ExpertModel
 
 
 class RNNBlock(nn.Module):

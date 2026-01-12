@@ -226,15 +226,6 @@ def create_expert_from_config(expert_config: Dict[str, Any]) -> ExpertModel:
             return CNNExpert(input_shape, output_dim, **params)
         except ImportError as e:
             raise ImportError(f"Failed to import CNNExpert: {e}")
-    elif expert_type == 'hybrid':
-        try:
-            from .hybrid_branch import HybridExpert
-            return HybridExpert(input_shape, output_dim, **params)
-        except ImportError as e:
-            print(f"Warning: HybridExpert not available: {e}")
-            # 回退到RNN专家
-            from .rnn_branch import RNNExpert
-            return RNNExpert(input_shape, output_dim, **params)
     elif expert_type == 'dummy':
         return DummyExpert(input_shape, output_dim, **params)
     else:

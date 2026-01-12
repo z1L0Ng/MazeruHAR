@@ -1,0 +1,2 @@
+我将MoE的融合部分加入其中，因为我电脑上面没下transformer的缘故所以没有实验能不能跑通，但是大体思路没有错。
+就是所有专家在输出之后会被MoE投影到一个common layer和gate router上，然后通过gate router算出各自的权重，common layer在提取各自结果的特征，因为只是一个demo我的common layer就一层，到时候可以根据需要来加

@@ -26,26 +26,6 @@ from .cnn_branch import (
     create_cnn_expert_lightweight
 )
 
-# 尝试导入混合专家，如果失败则跳过
-try:
-    from .hybrid_branch import (
-        HybridExpert,
-        create_hybrid_expert_small,
-        create_hybrid_expert_medium,
-        create_hybrid_expert_large,
-        create_hybrid_expert_attention_fusion
-    )
-    HYBRID_AVAILABLE = True
-except ImportError as e:
-    print(f"Warning: HybridExpert not available: {e}")
-    # 创建占位符类和函数
-    HybridExpert = None
-    create_hybrid_expert_small = None
-    create_hybrid_expert_medium = None
-    create_hybrid_expert_large = None
-    create_hybrid_expert_attention_fusion = None
-    HYBRID_AVAILABLE = False
-
 # 专家类型映射
 EXPERT_TYPES = {
     'transformer': TransformerExpert,
@@ -53,10 +33,6 @@ EXPERT_TYPES = {
     'cnn': CNNExpert,
     'dummy': DummyExpert
 }
-
-# 只有在混合专家可用时才添加
-if HYBRID_AVAILABLE:
-    EXPERT_TYPES['hybrid'] = HybridExpert
 
 # 预定义专家配置
 EXPERT_PRESETS = {
@@ -122,30 +98,7 @@ EXPERT_PRESETS = {
     }
 }
 
-# 只有在混合专家可用时才添加混合预设
-if HYBRID_AVAILABLE:
-    EXPERT_PRESETS.update({
-        'hybrid_small': {
-            'type': 'hybrid',
-            'factory': create_hybrid_expert_small,
-            'description': 'Small hybrid expert combining RNN and Transformer'
-        },
-        'hybrid_medium': {
-            'type': 'hybrid',
-            'factory': create_hybrid_expert_medium,
-            'description': 'Medium hybrid expert with balanced architecture'
-        },
-        'hybrid_large': {
-            'type': 'hybrid',
-            'factory': create_hybrid_expert_large,
-            'description': 'Large hybrid expert for complex temporal modeling'
-        },
-        'hybrid_attention_fusion': {
-            'type': 'hybrid',
-            'factory': create_hybrid_expert_attention_fusion,
-            'description': 'Hybrid expert with attention-based fusion'
-        }
-    })
+
 
 
 def create_expert_from_preset(preset_name: str, input_shape, output_dim) -> ExpertModel:
@@ -272,13 +225,3 @@ __all__ = [
     'EXPERT_PRESETS',
     'HYBRID_AVAILABLE'
 ]
-
-# 只有在混合专家可用时才导出相关内容
-if HYBRID_AVAILABLE:
-    __all__.extend([
-        'HybridExpert',
-        'create_hybrid_expert_small',
-        'create_hybrid_expert_medium',
-        'create_hybrid_expert_large',
-        'create_hybrid_expert_attention_fusion'
-    ])
