@@ -1,0 +1,82 @@
+name: "UCI_Multimodal_Experiment"
+description: "UCI HAR Dataset with Acc and Gyro fusion"
+
+environment:
+  seed: 42
+  device: "auto"
+  num_workers: 4
+  pin_memory: true
+
+dataset:
+  name: "UCI"
+  # 确保这个路径指向你解压后的文件夹，文件夹内应包含 train/ 和 test/
+  path: "datasets/dataset/UCI HAR Dataset/"
+  
+  preprocessing:
+    window_size: 128
+    
+  activity_labels:
+    0: "Walking"
+    1: "Upstairs"
+    2: "Downstairs"
+    3: "Sitting"
+    4: "Standing"
+    5: "Laying"
+    
+  # 定义模态 (对应 uci_parser 中的索引)
+  modalities:
+    acc:
+      enabled: true
+      channels: 3
+      column_indices: [6, 7, 8] # Total Acc
+    gyro:
+      enabled: true
+      channels: 3
+      column_indices: [3, 4, 5] # Body Gyro
+
+architecture:
+  type: "DynamicHarModel"
+  num_classes: 6
+  
+  experts:
+    # 专家 1: 处理加速度 (CNN)
+    acc_expert:
+      type: "cnn"
+      modality: "acc"
+      params:
+        input_shape: [128, 3]
+        output_dim: 64
+        filters: [32, 64]
+        kernel_sizes: [5, 3]
+        dropout: 0.2
+
+    # 专家 2: 处理陀螺仪 (Transformer)
+    gyro_expert:
+      type: "transformer"
+      modality: "gyro"
+      params:
+        input_shape: [128, 3]
+        output_dim: 64
+        d_model: 64
+        nhead: 4
+        num_layers: 2
+        dim_feedforward: 128
+        dropout: 0.1
+  
+  # 融合层
+  fusion:
+    strategy: "MoE"
+    params:
+      common_dim: 64
+
+  classifier:
+    type: "MLP"
+    input_dim: 128  # 64 (Acc) + 64 (Gyro)
+    layers: [128, 64, 6]
+
+training:
+  epochs: 50
+  batch_size: 64
+  learning_rate: 0.001
+  optimizer: "Adam"
+  scheduler: "step"

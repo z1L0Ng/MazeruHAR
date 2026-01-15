@@ -7,22 +7,26 @@ try:
     from .base_parser import DataParser
     from .shl_parser import SHLDataParser
     from .universal_dataset import UniversalHARDataset
+    from .uci_parser import UCIHarParser
 except ImportError:
     # 如果相对导入失败，尝试直接导入
     try:
         from data_layer.base_parser import DataParser
         from data_layer.shl_parser import SHLDataParser
         from data_layer.universal_dataset import UniversalHARDataset
+        from data_layer.uci_parser import UCIHarParser
     except ImportError:
         # 最后尝试无包导入
         from base_parser import DataParser
         from shl_parser import SHLDataParser
         from universal_dataset import UniversalHARDataset
+        from uci_parser import UCIHarParser
 
 __all__ = [
     'DataParser',
     'SHLDataParser', 
-    'UniversalHARDataset'
+    'UniversalHARDataset',
+    'UCIHarParser'
 ]
 
 __version__ = '1.0.0'
