@@ -14,6 +14,8 @@ dataset:
   
   preprocessing:
     window_size: 128
+    step_size: 64
+    sample_rate: 100
     
   activity_labels:
     0: "Walking"
@@ -25,15 +27,19 @@ dataset:
     
   # 定义模态 (对应 uci_parser 中的索引)
   modalities:
-    acc:
-      enabled: true
+    body_acc:
+      enabled: false
       channels: 3
-      column_indices: [6, 7, 8] # Total Acc
+      column_indices: [0, 1, 2] # Body Acc
     gyro:
       enabled: true
       channels: 3
       column_indices: [3, 4, 5] # Body Gyro
-
+    total_acc:
+      enabled: true
+      channels: 3
+      column_indices: [6, 7, 8] # Total Acc
+    
 architecture:
   type: "DynamicHarModel"
   num_classes: 6
@@ -42,7 +48,7 @@ architecture:
     # 专家 1: 处理加速度 (CNN)
     acc_expert:
       type: "cnn"
-      modality: "acc"
+      modality: "total_acc"
       params:
         input_shape: [128, 3]
         output_dim: 64
@@ -71,12 +77,29 @@ architecture:
 
   classifier:
     type: "MLP"
-    input_dim: 128  # 64 (Acc) + 64 (Gyro)
-    layers: [128, 64, 6]
+    input_dim: 64
+    layers: [64, 128, 64, 6]
 
 training:
   epochs: 50
   batch_size: 64
   learning_rate: 0.001
+  weight_decay: 0.01
   optimizer: "Adam"
   scheduler: "step"
+  label_smoothing: 0.1
+  gradient_clip_norm: 1.0
+  early_stopping:
+    enabled: true
+    patience: 25
+    monitor: "val_f1"
+    mode: "max"
+    min_delta: 0.001
+
+
+output:
+  base_dir: "./results"
+  experiment_name: "UCI_Multimodal_Experiment"
+  save_checkpoints: true
+  save_best_only: true
+  verbose: true

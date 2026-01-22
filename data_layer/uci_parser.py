@@ -46,8 +46,8 @@ class UCIHarParser(DataParser):
         folder = os.path.join(self.data_path, path_group, "Inertial Signals")
         
         if not os.path.exists(folder):
-             # 尝试不带 Inertial Signals 的路径，或者提示错误
-             raise FileNotFoundError(f"找不到信号文件夹: {folder}. 请确保 UCI 数据集已解压且保持原始结构。")
+            # 尝试不带 Inertial Signals 的路径，或者提示错误
+            raise FileNotFoundError(f"找不到信号文件夹: {folder}. 请确保 UCI 数据集已解压且保持原始结构。")
 
         self.logger.info(f"Loading UCI {group} signals from {folder}...")
         

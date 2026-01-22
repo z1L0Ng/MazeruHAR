@@ -64,6 +64,3 @@ config/experiments/
 
 # 测试文件
 test.ipynb
-
-# 数据集
-UCI HAR Dataset/
