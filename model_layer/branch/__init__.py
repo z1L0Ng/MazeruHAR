@@ -4,7 +4,7 @@
 提供所有专家模型的导入和工厂函数
 """
 
-from .base_branch import ExpertModel, DummyExpert, create_expert_from_config
+from .base_branch import ExpertModel
 from .transformer_branch import (
     TransformerExpert,
     create_transformer_expert_small,
@@ -30,8 +30,7 @@ from .cnn_branch import (
 EXPERT_TYPES = {
     'transformer': TransformerExpert,
     'rnn': RNNExpert,
-    'cnn': CNNExpert,
-    'dummy': DummyExpert
+    'cnn': CNNExpert
 }
 
 # 预定义专家配置
@@ -186,7 +185,6 @@ def validate_expert_config(config: dict) -> bool:
 __all__ = [
     # 基础类
     'ExpertModel',
-    'DummyExpert',
     
     # 专家类
     'TransformerExpert',
@@ -194,7 +192,6 @@ __all__ = [
     'CNNExpert',
     
     # 工厂函数
-    'create_expert_from_config',
     'create_expert_from_preset',
     
     # Transformer工厂函数
@@ -222,6 +219,5 @@ __all__ = [
     
     # 常量
     'EXPERT_TYPES',
-    'EXPERT_PRESETS',
-    'HYBRID_AVAILABLE'
+    'EXPERT_PRESETS'
 ]

@@ -19,7 +19,7 @@ class DynamicHarModel(nn.Module):
         self.experts_config = self.architecture_config.get('experts', {})
         self.fusion_config = self.architecture_config.get('fusion', {})
         self.classifier_config = self.architecture_config.get('classifier', {})
-        self.num_classes = self.architecture_config.get('num_classes', 8)
+        self.num_classes = self.architecture_config.get('num_classes', 6)
         
         # 动态创建专家模型
         self.experts = nn.ModuleDict()
@@ -27,6 +27,8 @@ class DynamicHarModel(nn.Module):
         
         # 传递专家维度信息到融合层配置
         expert_dims = {name: expert.output_dim for name, expert in self.experts.items()}
+        if 'params' not in self.fusion_config:
+            self.fusion_config['params'] = {}
         self.fusion_config['params']['expert_dims'] = expert_dims
         self.fusion_config['params']['num_experts'] = len(self.experts)
 
