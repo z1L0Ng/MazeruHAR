@@ -37,7 +37,7 @@ class UCIHarParser(DataParser):
     def load_signal_file(self, file_path: str) -> np.ndarray:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Missing file: {file_path}")
-        return pd.read_csv(file_path, delim_whitespace=True, header=None).values
+        return pd.read_csv(file_path, sep='\s+', header=None).values
 
     def load_raw_group(self, group: str) -> Tuple[np.ndarray, np.ndarray]:
         """加载 train 或 test 的完整数据"""
@@ -61,7 +61,7 @@ class UCIHarParser(DataParser):
         
         # 加载标签
         y_path = os.path.join(self.data_path, path_group, f"y_{path_group}.txt")
-        y = pd.read_csv(y_path, delim_whitespace=True, header=None).values.flatten()
+        y = pd.read_csv(y_path, sep='\s+', header=None).values.flatten()
         y = y - 1 # 转换 1-6 为 0-5
         
         return X, y

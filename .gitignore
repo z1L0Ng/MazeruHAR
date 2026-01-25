@@ -6,8 +6,6 @@ __pycache__/
 # Notebook checkpoint
 .ipynb_checkpoints/
 
-# Jupyter runtime/log
-*.log
 
 # Conda 环境文件
 env/
@@ -30,7 +28,6 @@ env/
 *.h5
 *.pt
 *.ckpt
-*.pth
 *.onnx
 
 # Dataset cache / temp
@@ -60,7 +57,6 @@ config/generated/
 config/experiments/
 *.config.yaml
 
-/results
 
 # 测试文件
 test.ipynb
