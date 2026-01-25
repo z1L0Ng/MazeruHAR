@@ -16,9 +16,6 @@ env/
 # *.yaml  # 注释掉这一行
 # 或者添加例外规则：
 !config/*.yaml
-!config/default_configs/*.yaml
-!config/experiments/*.yaml
-!config/generated/*.yaml
 
 # VSCode
 .vscode/
@@ -29,6 +26,11 @@ env/
 *.pt
 *.ckpt
 *.onnx
+*.pth
+*.log
+results/**
+!results/**/
+!results/**/*.png
 
 # Dataset cache / temp
 *.zip
