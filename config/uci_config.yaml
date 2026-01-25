@@ -85,8 +85,16 @@ training:
   batch_size: 64
   learning_rate: 0.001
   weight_decay: 0.01
-  optimizer: "Adam"
+  optimizer: "AdamW"
   scheduler: "step"
+  scheduler_params:
+    step_size: 10
+    gamma: 0.5
+  # scheduler: "cosine"
+  # scheduler_params:
+  #   T_max: 45
+  #   eta_min: 1e-6
+  warmup_epochs: 5
   label_smoothing: 0.1
   gradient_clip_norm: 1.0
   early_stopping:
