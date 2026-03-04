@@ -2,7 +2,7 @@
 
 # 从正确的子模块中导入
 from .dynamic_har_model import DynamicHarModel, create_dynamic_har_model
-from .branch import ExpertModel, TransformerExpert, RNNExpert, CNNExpert
+from .branch import ExpertModel, TransformerExpert, RNNExpert, CNNExpert, BranchformerExpert
 from fusion_layer import FusionStrategy # 已修正
 
 # 将 get_example_config 函数移到这里
@@ -51,6 +51,7 @@ __all__ = [
     'create_dynamic_har_model',
     'ExpertModel',
     'TransformerExpert',
+    'BranchformerExpert',
     'RNNExpert', 
     'CNNExpert',
     'HybridExpert',

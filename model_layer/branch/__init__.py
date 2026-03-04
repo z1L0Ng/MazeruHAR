@@ -25,10 +25,12 @@ from .cnn_branch import (
     create_cnn_expert_deep,
     create_cnn_expert_lightweight
 )
+from .branchformer_branch import BranchformerExpert
 
 # 专家类型映射
 EXPERT_TYPES = {
     'transformer': TransformerExpert,
+    'branchformer': BranchformerExpert,
     'rnn': RNNExpert,
     'cnn': CNNExpert
 }
@@ -188,6 +190,7 @@ __all__ = [
     
     # 专家类
     'TransformerExpert',
+    'BranchformerExpert',
     'RNNExpert',
     'CNNExpert',
     

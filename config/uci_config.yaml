@@ -64,7 +64,7 @@ architecture:
         input_shape: [128, 3]
         output_dim: 64
         d_model: 64
-        nhead: 4
+        num_heads: 4
         num_layers: 2
         dim_feedforward: 128
         dropout: 0.1
