@@ -26,11 +26,8 @@ env/
 *.pt
 *.ckpt
 *.onnx
-*.pth
-*.log
-results/**
-!results/**/
-!results/**/*.png
+# *.pth
+# *.log
 
 # Dataset cache / temp
 *.zip
@@ -44,7 +41,7 @@ runs/
 
 # Jupyter execution artifacts
 main_output.ipynb
-train.log
+# train.log
 
 # OS
 .DS_Store

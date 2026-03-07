@@ -1,0 +1,104 @@
+2026-01-25 17:24:17,604 [INFO] - 环境设置完成。设备: cuda, 输出目录: results\UCI_Multimodal_Experiment
+2026-01-25 17:24:17,604 [INFO] - 正在验证UCI配置文件...
+2026-01-25 17:24:17,605 [INFO] - ✓ 所有启用的模态都有对应的专家。
+2026-01-25 17:24:17,605 [INFO] - ✓ 分类器输入维度匹配: 64
+2026-01-25 17:24:17,606 [INFO] - ✓ UCI配置验证通过
+2026-01-25 17:24:17,606 [INFO] - 开始UCI多模态训练实验: config/uci_config.yaml
+2026-01-25 17:24:17,607 [INFO] - 加载数据集: UCI
+2026-01-25 17:24:17,638 [INFO] - Loading UCI train signals from datasets/dataset/UCI HAR Dataset/train\Inertial Signals...
+2026-01-25 17:24:19,119 [INFO] - UCI train set: 5881 samples
+2026-01-25 17:24:19,155 [INFO] - Loading UCI train signals from datasets/dataset/UCI HAR Dataset/train\Inertial Signals...
+2026-01-25 17:24:20,626 [INFO] - UCI validation set: 1471 samples
+2026-01-25 17:24:20,637 [INFO] - Loading UCI test signals from datasets/dataset/UCI HAR Dataset/test\Inertial Signals...
+2026-01-25 17:24:21,265 [INFO] - UCI test set: 2947 samples
+2026-01-25 17:24:21,281 [INFO] - 数据集大小 - 训练: 5881, 验证: 1471, 测试: 2947
+2026-01-25 17:24:21,282 [INFO] - 实际加载的模态: ['gyro', 'total_acc']
+2026-01-25 17:24:21,282 [INFO] -   gyro: 形状 torch.Size([128, 3])
+2026-01-25 17:24:21,283 [INFO] -   total_acc: 形状 torch.Size([128, 3])
+2026-01-25 17:24:21,284 [INFO] - 类别分布: {np.int64(0): np.int64(997), np.int64(1): np.int64(857), np.int64(2): np.int64(786), np.int64(3): np.int64(1022), np.int64(4): np.int64(1105), np.int64(5): np.int64(1114)}
+2026-01-25 17:24:21,284 [INFO] - 构建动态HAR模型...
+2026-01-25 17:24:21,364 [INFO] - 模型参数总数: 1,056,968
+2026-01-25 17:24:21,365 [INFO] - 可训练参数: 1,056,968
+2026-01-25 17:24:21,365 [INFO] - 设置训练组件...
+2026-01-25 17:24:21,367 [INFO] - 类别权重: {np.int64(0): np.float64(0.983116014710799), np.int64(1): np.float64(1.1437183975106961), np.int64(2): np.float64(1.2470313825275656), np.int64(3): np.float64(0.9590671885192433), np.int64(4): np.float64(0.8870286576168929), np.int64(5): np.float64(0.8798623578695391)}
+2026-01-25 17:24:22,169 [INFO] - 使用CosineAnnealingLR: T_max=45, eta_min=1e-06
+2026-01-25 17:24:22,169 [INFO] - 启用学习率预热: warmup_epochs=5
+2026-01-25 17:24:22,170 [INFO] - 训练组件设置完成: 优化器=adamw, 调度器=cosine
+2026-01-25 17:24:22,170 [INFO] - 开始训练...
+2026-01-25 17:24:34,631 [INFO] - Epoch 1/50 | Train Loss: 0.7790, Train Acc: 0.8503 | Val Loss: 0.8882, Val Acc: 0.8341, Val F1: 0.8360 | LR: 0.001000
+2026-01-25 17:24:34,640 [INFO] - 新最佳模型已保存，验证F1分数: 0.8360
+2026-01-25 17:24:46,873 [INFO] - Epoch 2/50 | Train Loss: 0.5778, Train Acc: 0.9476 | Val Loss: 0.7376, Val Acc: 0.8919, Val F1: 0.8919 | LR: 0.000200
+2026-01-25 17:24:46,883 [INFO] - 新最佳模型已保存，验证F1分数: 0.8919
+2026-01-25 17:24:59,259 [INFO] - Epoch 3/50 | Train Loss: 0.5601, Train Acc: 0.9504 | Val Loss: 0.6934, Val Acc: 0.9001, Val F1: 0.9001 | LR: 0.000400
+2026-01-25 17:24:59,269 [INFO] - 新最佳模型已保存，验证F1分数: 0.9001
+2026-01-25 17:25:11,433 [INFO] - Epoch 4/50 | Train Loss: 0.5578, Train Acc: 0.9469 | Val Loss: 0.7254, Val Acc: 0.9123, Val F1: 0.9124 | LR: 0.000600
+2026-01-25 17:25:11,441 [INFO] - 新最佳模型已保存，验证F1分数: 0.9124
+2026-01-25 17:25:23,672 [INFO] - Epoch 5/50 | Train Loss: 0.5578, Train Acc: 0.9502 | Val Loss: 0.6965, Val Acc: 0.8980, Val F1: 0.8979 | LR: 0.000800
+2026-01-25 17:25:35,825 [INFO] - Epoch 6/50 | Train Loss: 0.5550, Train Acc: 0.9469 | Val Loss: 0.7203, Val Acc: 0.8933, Val F1: 0.8947 | LR: 0.001000
+2026-01-25 17:25:48,198 [INFO] - Epoch 7/50 | Train Loss: 0.5397, Train Acc: 0.9514 | Val Loss: 0.7332, Val Acc: 0.9116, Val F1: 0.9118 | LR: 0.000999
+2026-01-25 17:26:00,400 [INFO] - Epoch 8/50 | Train Loss: 0.5281, Train Acc: 0.9566 | Val Loss: 0.7325, Val Acc: 0.8973, Val F1: 0.8975 | LR: 0.000995
+2026-01-25 17:26:12,587 [INFO] - Epoch 9/50 | Train Loss: 0.5235, Train Acc: 0.9588 | Val Loss: 0.6840, Val Acc: 0.9137, Val F1: 0.9138 | LR: 0.000989
+2026-01-25 17:26:12,597 [INFO] - 新最佳模型已保存，验证F1分数: 0.9138
+2026-01-25 17:26:24,807 [INFO] - Epoch 10/50 | Train Loss: 0.5183, Train Acc: 0.9593 | Val Loss: 0.7261, Val Acc: 0.9109, Val F1: 0.9115 | LR: 0.000981
+2026-01-25 17:26:37,201 [INFO] - Epoch 11/50 | Train Loss: 0.5217, Train Acc: 0.9554 | Val Loss: 0.6842, Val Acc: 0.8872, Val F1: 0.8865 | LR: 0.000970
+2026-01-25 17:26:49,629 [INFO] - Epoch 12/50 | Train Loss: 0.5223, Train Acc: 0.9581 | Val Loss: 0.7209, Val Acc: 0.8885, Val F1: 0.8884 | LR: 0.000957
+2026-01-25 17:27:02,203 [INFO] - Epoch 13/50 | Train Loss: 0.5144, Train Acc: 0.9579 | Val Loss: 0.7161, Val Acc: 0.9041, Val F1: 0.9042 | LR: 0.000942
+2026-01-25 17:27:14,662 [INFO] - Epoch 14/50 | Train Loss: 0.5108, Train Acc: 0.9612 | Val Loss: 0.7073, Val Acc: 0.8844, Val F1: 0.8840 | LR: 0.000924
+2026-01-25 17:27:26,857 [INFO] - Epoch 15/50 | Train Loss: 0.5120, Train Acc: 0.9598 | Val Loss: 0.6179, Val Acc: 0.9184, Val F1: 0.9183 | LR: 0.000905
+2026-01-25 17:27:26,867 [INFO] - 新最佳模型已保存，验证F1分数: 0.9183
+2026-01-25 17:27:39,204 [INFO] - Epoch 16/50 | Train Loss: 0.5140, Train Acc: 0.9591 | Val Loss: 0.6721, Val Acc: 0.8858, Val F1: 0.8851 | LR: 0.000883
+2026-01-25 17:27:51,697 [INFO] - Epoch 17/50 | Train Loss: 0.5081, Train Acc: 0.9636 | Val Loss: 0.6976, Val Acc: 0.9116, Val F1: 0.9118 | LR: 0.000860
+2026-01-25 17:28:05,399 [INFO] - Epoch 18/50 | Train Loss: 0.5159, Train Acc: 0.9579 | Val Loss: 0.7014, Val Acc: 0.9109, Val F1: 0.9110 | LR: 0.000835
+2026-01-25 17:28:17,765 [INFO] - Epoch 19/50 | Train Loss: 0.5071, Train Acc: 0.9615 | Val Loss: 0.7011, Val Acc: 0.8987, Val F1: 0.8993 | LR: 0.000808
+2026-01-25 17:28:30,162 [INFO] - Epoch 20/50 | Train Loss: 0.5065, Train Acc: 0.9621 | Val Loss: 0.6687, Val Acc: 0.9069, Val F1: 0.9070 | LR: 0.000780
+2026-01-25 17:28:42,702 [INFO] - Epoch 21/50 | Train Loss: 0.5124, Train Acc: 0.9591 | Val Loss: 0.7175, Val Acc: 0.8933, Val F1: 0.8942 | LR: 0.000750
+2026-01-25 17:28:54,987 [INFO] - Epoch 22/50 | Train Loss: 0.5063, Train Acc: 0.9629 | Val Loss: 0.6790, Val Acc: 0.9150, Val F1: 0.9152 | LR: 0.000719
+2026-01-25 17:29:07,328 [INFO] - Epoch 23/50 | Train Loss: 0.5043, Train Acc: 0.9633 | Val Loss: 0.6503, Val Acc: 0.8742, Val F1: 0.8740 | LR: 0.000688
+2026-01-25 17:29:19,342 [INFO] - Epoch 24/50 | Train Loss: 0.4976, Train Acc: 0.9651 | Val Loss: 0.6647, Val Acc: 0.8987, Val F1: 0.8989 | LR: 0.000655
+2026-01-25 17:29:31,683 [INFO] - Epoch 25/50 | Train Loss: 0.4988, Train Acc: 0.9629 | Val Loss: 0.6749, Val Acc: 0.9014, Val F1: 0.9016 | LR: 0.000621
+2026-01-25 17:29:43,993 [INFO] - Epoch 26/50 | Train Loss: 0.4978, Train Acc: 0.9665 | Val Loss: 0.6125, Val Acc: 0.9082, Val F1: 0.9084 | LR: 0.000587
+2026-01-25 17:29:56,329 [INFO] - Epoch 27/50 | Train Loss: 0.5029, Train Acc: 0.9639 | Val Loss: 0.6704, Val Acc: 0.8783, Val F1: 0.8780 | LR: 0.000553
+2026-01-25 17:30:08,537 [INFO] - Epoch 28/50 | Train Loss: 0.4962, Train Acc: 0.9675 | Val Loss: 0.6270, Val Acc: 0.8933, Val F1: 0.8927 | LR: 0.000518
+2026-01-25 17:30:20,713 [INFO] - Epoch 29/50 | Train Loss: 0.4986, Train Acc: 0.9631 | Val Loss: 0.6396, Val Acc: 0.9021, Val F1: 0.9023 | LR: 0.000483
+2026-01-25 17:30:32,917 [INFO] - Epoch 30/50 | Train Loss: 0.4988, Train Acc: 0.9679 | Val Loss: 0.6355, Val Acc: 0.9048, Val F1: 0.9050 | LR: 0.000448
+2026-01-25 17:30:45,133 [INFO] - Epoch 31/50 | Train Loss: 0.4982, Train Acc: 0.9641 | Val Loss: 0.6780, Val Acc: 0.9062, Val F1: 0.9063 | LR: 0.000414
+2026-01-25 17:30:57,551 [INFO] - Epoch 32/50 | Train Loss: 0.4932, Train Acc: 0.9682 | Val Loss: 0.6678, Val Acc: 0.9055, Val F1: 0.9056 | LR: 0.000380
+2026-01-25 17:31:09,949 [INFO] - Epoch 33/50 | Train Loss: 0.4945, Train Acc: 0.9681 | Val Loss: 0.6448, Val Acc: 0.9001, Val F1: 0.9002 | LR: 0.000346
+2026-01-25 17:31:22,329 [INFO] - Epoch 34/50 | Train Loss: 0.4932, Train Acc: 0.9663 | Val Loss: 0.6464, Val Acc: 0.9028, Val F1: 0.9029 | LR: 0.000313
+2026-01-25 17:31:34,700 [INFO] - Epoch 35/50 | Train Loss: 0.4979, Train Acc: 0.9651 | Val Loss: 0.6276, Val Acc: 0.9048, Val F1: 0.9050 | LR: 0.000282
+2026-01-25 17:31:47,115 [INFO] - Epoch 36/50 | Train Loss: 0.4947, Train Acc: 0.9667 | Val Loss: 0.6625, Val Acc: 0.8987, Val F1: 0.8988 | LR: 0.000251
+2026-01-25 17:31:59,392 [INFO] - Epoch 37/50 | Train Loss: 0.4924, Train Acc: 0.9677 | Val Loss: 0.6469, Val Acc: 0.9055, Val F1: 0.9056 | LR: 0.000221
+2026-01-25 17:32:11,886 [INFO] - Epoch 38/50 | Train Loss: 0.4900, Train Acc: 0.9715 | Val Loss: 0.6566, Val Acc: 0.9048, Val F1: 0.9050 | LR: 0.000193
+2026-01-25 17:32:24,294 [INFO] - Epoch 39/50 | Train Loss: 0.4891, Train Acc: 0.9689 | Val Loss: 0.6537, Val Acc: 0.8844, Val F1: 0.8840 | LR: 0.000166
+2026-01-25 17:32:36,548 [INFO] - Epoch 40/50 | Train Loss: 0.4906, Train Acc: 0.9703 | Val Loss: 0.6364, Val Acc: 0.9001, Val F1: 0.9002 | LR: 0.000141
+2026-01-25 17:32:36,549 [INFO] - 早停触发! 最佳验证F1: 0.9183
+2026-01-25 17:32:36,549 [INFO] - 训练完成! 最佳验证F1: 0.9183
+2026-01-25 17:32:37,179 [INFO] - 学习曲线已保存至 results\UCI_Multimodal_Experiment\learning_curves.png
+2026-01-25 17:32:37,357 [INFO] - 进行最终测试...
+2026-01-25 17:32:37,384 [INFO] - 已加载最佳模型进行测试
+2026-01-25 17:32:43,021 [INFO] - 测试集详细结果:
+2026-01-25 17:32:43,021 [INFO] - 准确率: 0.9121
+2026-01-25 17:32:43,022 [INFO] - F1分数: 0.9115
+2026-01-25 17:32:43,026 [INFO] - 分类报告:
+              precision    recall  f1-score   support
+
+     Walking       0.92      1.00      0.96       496
+    Upstairs       0.92      0.88      0.90       471
+  Downstairs       0.96      0.95      0.95       420
+     Sitting       0.80      0.84      0.82       491
+    Standing       0.88      0.81      0.84       532
+      Laying       0.99      1.00      1.00       537
+
+    accuracy                           0.91      2947
+   macro avg       0.91      0.91      0.91      2947
+weighted avg       0.91      0.91      0.91      2947
+
+2026-01-25 17:32:43,028 [INFO] - 混淆矩阵:
+[[496   0   0   0   0   0]
+ [ 38 415  18   0   0   0]
+ [  5  16 399   0   0   0]
+ [  0  18   0 412  56   5]
+ [  0   0   0 103 429   0]
+ [  0   0   0   0   0 537]]
+2026-01-25 17:32:43,028 [INFO] - 最终测试结果 - Loss: 0.6250, Acc: 0.9121, F1: 0.9115
+2026-01-25 17:32:43,029 [INFO] - UCI多模态训练实验完成!

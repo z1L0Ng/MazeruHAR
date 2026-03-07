@@ -58,7 +58,7 @@ architecture:
 
     # 专家 2: 处理陀螺仪 (Transformer)
     gyro_expert:
-      type: "transformer"
+      type: "branchformer"
       modality: "gyro"
       params:
         input_shape: [128, 3]
